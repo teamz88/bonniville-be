@@ -116,7 +116,7 @@ class AIService:
     def _call_rag_api(self, message: str, conversation_history: list = None) -> Dict[str, Any]:
         """Call external RAG API to get AI response and sources (non-streaming)."""
         try:
-            url = "https://rag.junkgpt.com/ask-question/"
+            url = "https://bonnevillerag.omadligrouphq.com/ask-question/"
             headers = {
                 "Content-Type": "application/json"
             }
@@ -189,7 +189,7 @@ Try rephrasing your question with specific business context or terminology from 
     def _call_rag_api_stream(self, message: str, conversation_history: list = None) -> Iterator[Dict[str, Any]]:
         """Call external RAG API to get streaming AI response and sources."""
         try:
-            url = "https://rag.junkgpt.com/ask-question/"
+            url = "https://bonnevillerag.omadligrouphq.com/ask-question/"
             headers = {
                 "Content-Type": "application/json",
                 "Accept": "text/event-stream"
@@ -198,6 +198,8 @@ Try rephrasing your question with specific business context or terminology from 
             # Format conversation history according to the required structure
             question_data = self._format_conversation_for_api(message, conversation_history)
             data = {"question": question_data}
+
+            logger.error(f"DATA =================: {str(data)}")
             
             response = requests.post(url, json=data, headers=headers, timeout=60, stream=True)
             response.raise_for_status()
@@ -757,7 +759,7 @@ class FeedbackService:
     """Service for handling feedback interactions with RAG API."""
     
     def __init__(self):
-        self.rag_base_url = "https://rag.junkgpt.com"
+        self.rag_base_url = "https://bonnevillerag.omadligrouphq.com"
     
     def submit_thumbs_feedback(self, question: str, answer: str, feedback_type: str, comment: str = None) -> Dict[str, Any]:
         """Submit thumbs up/down feedback to RAG API.

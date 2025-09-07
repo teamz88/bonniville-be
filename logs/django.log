@@ -293,3 +293,120 @@ INFO 2025-09-06 13:32:59,978 basehttp 12119 6206156800 "GET /api/chat/conversati
 INFO 2025-09-06 13:32:59,986 basehttp 12119 6189330432 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
 INFO 2025-09-06 13:32:59,988 basehttp 12119 6172504064 "GET /api/chat/folders/ HTTP/1.1" 200 2
 INFO 2025-09-06 13:33:00,007 basehttp 12119 6206156800 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
+INFO 2025-09-06 13:39:29,982 basehttp 12119 6188756992 "GET /api/chat/folders/ HTTP/1.1" 200 2
+INFO 2025-09-06 13:39:29,993 basehttp 12119 6205583360 "GET /api/chat/conversations/53113fd7-f387-49e6-bff5-09345d113da1/history/ HTTP/1.1" 200 997
+INFO 2025-09-06 13:39:29,996 basehttp 12119 6171930624 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
+INFO 2025-09-06 13:39:30,006 basehttp 12119 6188756992 "GET /api/chat/folders/ HTTP/1.1" 200 2
+INFO 2025-09-06 13:39:30,017 basehttp 12119 6205583360 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
+WARNING 2025-09-06 14:59:41,360 log 12119 6171357184 Unauthorized: /api/chat/conversations/2fe886a0-754d-495b-82b1-5c469f784190/history/
+WARNING 2025-09-06 14:59:41,362 basehttp 12119 6171357184 "GET /api/chat/conversations/2fe886a0-754d-495b-82b1-5c469f784190/history/ HTTP/1.1" 401 172
+WARNING 2025-09-06 14:59:41,368 log 12119 6171357184 Unauthorized: /api/chat/conversations/53113fd7-f387-49e6-bff5-09345d113da1/history/
+WARNING 2025-09-06 14:59:41,369 basehttp 12119 6171357184 "GET /api/chat/conversations/53113fd7-f387-49e6-bff5-09345d113da1/history/ HTTP/1.1" 401 172
+WARNING 2025-09-06 14:59:41,385 log 12119 6171357184 Unauthorized: /api/chat/conversations/2fe886a0-754d-495b-82b1-5c469f784190/history/
+WARNING 2025-09-06 14:59:41,385 basehttp 12119 6171357184 "GET /api/chat/conversations/2fe886a0-754d-495b-82b1-5c469f784190/history/ HTTP/1.1" 401 58
+INFO 2025-09-07 21:44:11,205 autoreload 81983 8588520576 Watching for file changes with StatReloader
+WARNING 2025-09-07 21:44:17,539 log 81983 6194638848 Unauthorized: /api/chat/conversations/
+WARNING 2025-09-07 21:44:17,539 log 81983 6211465216 Unauthorized: /api/chat/folders/
+WARNING 2025-09-07 21:44:17,540 basehttp 81983 6211465216 "GET /api/chat/folders/ HTTP/1.1" 401 51
+WARNING 2025-09-07 21:44:17,540 basehttp 81983 6194638848 "GET /api/chat/conversations/ HTTP/1.1" 401 51
+WARNING 2025-09-07 21:44:17,551 log 81983 6211465216 Unauthorized: /api/chat/conversations/
+WARNING 2025-09-07 21:44:17,554 log 81983 6228291584 Unauthorized: /api/chat/folders/
+WARNING 2025-09-07 21:44:17,555 basehttp 81983 6211465216 "GET /api/chat/conversations/ HTTP/1.1" 401 51
+WARNING 2025-09-07 21:44:17,555 basehttp 81983 6228291584 "GET /api/chat/folders/ HTTP/1.1" 401 51
+INFO 2025-09-07 21:44:25,224 basehttp 81983 6228291584 "POST /api/auth/login/ HTTP/1.1" 200 1074
+INFO 2025-09-07 21:44:25,407 basehttp 81983 6211465216 "GET /api/chat/folders/ HTTP/1.1" 200 2
+INFO 2025-09-07 21:44:25,420 basehttp 81983 6194638848 "GET /api/chat/folders/ HTTP/1.1" 200 2
+INFO 2025-09-07 21:44:25,422 basehttp 81983 6228291584 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
+INFO 2025-09-07 21:44:25,435 basehttp 81983 6194638848 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
+INFO 2025-09-07 21:44:28,890 basehttp 81983 6228291584 "GET /api/chat/folders/ HTTP/1.1" 200 2
+INFO 2025-09-07 21:44:28,903 basehttp 81983 6194638848 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
+INFO 2025-09-07 21:44:28,919 basehttp 81983 6211465216 "GET /api/chat/folders/ HTTP/1.1" 200 2
+INFO 2025-09-07 21:44:28,932 basehttp 81983 6228291584 "GET /api/chat/conversations/ HTTP/1.1" 200 3200
+INFO 2025-09-07 21:44:36,490 basehttp 81983 6228291584 "POST /api/chat/conversations/ HTTP/1.1" 201 311
+INFO 2025-09-07 21:44:36,500 basehttp 81983 6211465216 "OPTIONS /api/chat/conversations/72d6998a-7308-43c8-81da-04f924f73307/history/ HTTP/1.1" 200 0
+INFO 2025-09-07 21:44:36,513 basehttp 81983 6211465216 "GET /api/chat/conversations/72d6998a-7308-43c8-81da-04f924f73307/history/ HTTP/1.1" 200 2
+INFO 2025-09-07 21:44:36,518 basehttp 81983 6228291584 "GET /api/chat/conversations/ HTTP/1.1" 200 3512
+INFO 2025-09-07 21:44:36,524 basehttp 81983 6228291584 "OPTIONS /api/chat/stream/ HTTP/1.1" 200 0
+INFO 2025-09-07 21:44:36,536 views 81983 6228291584 ChatStreamView POST called by user: bro (bro bro)
+INFO 2025-09-07 21:44:36,536 views 81983 6228291584 Request data: {'message': 'hi bro?', 'conversation_id': '72d6998a-7308-43c8-81da-04f924f73307'}
+INFO 2025-09-07 21:44:36,540 views 81983 6228291584 Serializer validated data: OrderedDict({'message': 'hi bro?', 'conversation_id': UUID('72d6998a-7308-43c8-81da-04f924f73307')})
+INFO 2025-09-07 21:44:36,540 views 81983 6228291584 Starting generate_stream function
+INFO 2025-09-07 21:44:36,540 views 81983 6228291584 About to call process_chat_message_stream
+ERROR 2025-09-07 21:44:37,141 services 81983 6228291584 RAG API streaming request failed: 500 Server Error: Internal Server Error for url: https://bonnevillerag.omadligrouphq.com/ask-question/
+INFO 2025-09-07 21:44:37,144 views 81983 6228291584 Stream completed with 1 chunks
+INFO 2025-09-07 21:44:37,144 basehttp 81983 6228291584 "POST /api/chat/stream/ HTTP/1.1" 200 521
+INFO 2025-09-07 21:46:21,228 autoreload 81983 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:21,542 autoreload 83256 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:23,798 autoreload 83256 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:24,056 autoreload 83294 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:26,235 autoreload 83294 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:26,524 autoreload 83312 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:27,626 autoreload 83312 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:27,834 autoreload 83329 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:29,014 autoreload 83329 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:29,222 autoreload 83348 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:30,423 autoreload 83348 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:30,728 autoreload 83355 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:31,944 autoreload 83355 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:32,143 autoreload 83377 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:35,359 autoreload 83377 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:35,661 autoreload 83405 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:38,926 autoreload 83405 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:39,136 autoreload 83434 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:40,297 autoreload 83434 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:40,555 autoreload 83447 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:41,763 autoreload 83447 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:41,959 autoreload 83466 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:44,183 autoreload 83466 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:44,392 autoreload 83491 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:45,599 autoreload 83491 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:45,867 autoreload 83500 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:47,990 autoreload 83500 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:48,236 autoreload 83525 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:49,420 autoreload 83525 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:49,695 autoreload 83543 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:52,914 autoreload 83543 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:46:53,153 autoreload 83583 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:46:59,164 views 83583 6125580288 ChatStreamView POST called by user: bro (bro bro)
+INFO 2025-09-07 21:46:59,165 views 83583 6125580288 Request data: {'message': 'hi bro', 'conversation_id': '72d6998a-7308-43c8-81da-04f924f73307'}
+INFO 2025-09-07 21:46:59,168 views 83583 6125580288 Serializer validated data: OrderedDict({'message': 'hi bro', 'conversation_id': UUID('72d6998a-7308-43c8-81da-04f924f73307')})
+INFO 2025-09-07 21:46:59,168 views 83583 6125580288 Starting generate_stream function
+INFO 2025-09-07 21:46:59,168 views 83583 6125580288 About to call process_chat_message_stream
+ERROR 2025-09-07 21:46:59,912 services 83583 6125580288 RAG API streaming request failed: 500 Server Error: Internal Server Error for url: https://bonnevillerag.omadligrouphq.com/ask-question/
+INFO 2025-09-07 21:46:59,918 views 83583 6125580288 Stream completed with 1 chunks
+INFO 2025-09-07 21:46:59,918 basehttp 83583 6125580288 "POST /api/chat/stream/ HTTP/1.1" 200 521
+INFO 2025-09-07 21:48:00,137 autoreload 83583 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:48:00,459 autoreload 84058 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:48:01,677 autoreload 84058 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:48:01,926 autoreload 84083 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:48:11,204 autoreload 84083 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:48:11,432 autoreload 84205 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:48:16,694 autoreload 84205 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:48:16,936 autoreload 84254 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:48:18,126 autoreload 84254 8588520576 /Users/bro/PROJECTS/bonniville/bonniville-be/apps/chat/services.py changed, reloading.
+INFO 2025-09-07 21:48:18,440 autoreload 84265 8588520576 Watching for file changes with StatReloader
+INFO 2025-09-07 21:48:23,297 views 84265 6193770496 ChatStreamView POST called by user: bro (bro bro)
+INFO 2025-09-07 21:48:23,297 views 84265 6193770496 Request data: {'message': 'hi boss', 'conversation_id': '72d6998a-7308-43c8-81da-04f924f73307'}
+INFO 2025-09-07 21:48:23,300 views 84265 6193770496 Serializer validated data: OrderedDict({'message': 'hi boss', 'conversation_id': UUID('72d6998a-7308-43c8-81da-04f924f73307')})
+INFO 2025-09-07 21:48:23,300 views 84265 6193770496 Starting generate_stream function
+INFO 2025-09-07 21:48:23,300 views 84265 6193770496 About to call process_chat_message_stream
+ERROR 2025-09-07 21:48:23,308 services 84265 6193770496 DATA =================: {'question': [{'message_type': 'user', 'content': 'hi boss'}, {'message_type': 'assistant', 'content': "I apologize, but I'm having trouble connecting to the knowledge base. Please try again later."}, {'message_type': 'user', 'content': 'hi bro'}, {'message_type': 'assistant', 'content': "I apologize, but I'm having trouble connecting to the knowledge base. Please try again later."}, {'message_type': 'user', 'content': 'hi bro?'}]}
+INFO 2025-09-07 21:48:27,696 services 84265 6193770496 Source document: Sources: Commissioners Minutes - 2024 - Book 39.pdf, Exhibit_61-25_Book_40_Page_89.pdf 
+INFO 2025-09-07 21:48:27,696 services 84265 6193770496 Extracted document list: ['Commissioners Minutes - 2024 - Book 39.pdf', 'Exhibit_61-25_Book_40_Page_89.pdf']
+INFO 2025-09-07 21:48:27,696 services 84265 6193770496 Finished processing 44 lines
+INFO 2025-09-07 21:48:27,706 views 84265 6193770496 Stream completed with 23 chunks
+INFO 2025-09-07 21:48:27,706 basehttp 84265 6193770496 "POST /api/chat/stream/ HTTP/1.1" 200 7571
+INFO 2025-09-07 21:49:59,604 basehttp 84265 6226849792 "OPTIONS /api/auth/profile/ HTTP/1.1" 200 0
+INFO 2025-09-07 21:49:59,606 basehttp 84265 6210023424 "OPTIONS /api/auth/client-info/ HTTP/1.1" 200 0
+INFO 2025-09-07 21:49:59,608 basehttp 84265 6193197056 "OPTIONS /api/auth/profile/ HTTP/1.1" 200 0
+INFO 2025-09-07 21:49:59,613 basehttp 84265 6243676160 "OPTIONS /api/auth/client-info/ HTTP/1.1" 200 0
+INFO 2025-09-07 21:49:59,631 basehttp 84265 6226849792 "GET /api/auth/profile/ HTTP/1.1" 200 528
+INFO 2025-09-07 21:49:59,636 basehttp 84265 6193197056 "GET /api/auth/client-info/ HTTP/1.1" 200 354
+INFO 2025-09-07 21:49:59,646 basehttp 84265 6243676160 "GET /api/auth/profile/ HTTP/1.1" 200 528
+INFO 2025-09-07 21:49:59,652 basehttp 84265 6226849792 "GET /api/auth/client-info/ HTTP/1.1" 200 354
+INFO 2025-09-07 21:50:55,527 basehttp 84265 6243676160 "GET /api/auth/client-info/ HTTP/1.1" 200 354
+INFO 2025-09-07 21:50:55,528 basehttp 84265 6226849792 "GET /api/auth/profile/ HTTP/1.1" 200 528
+INFO 2025-09-07 21:51:26,579 basehttp 84265 6226849792 "GET /api/auth/profile/ HTTP/1.1" 200 528
+INFO 2025-09-07 21:51:26,579 basehttp 84265 6243676160 "GET /api/auth/client-info/ HTTP/1.1" 200 354
+INFO 2025-09-07 21:51:32,580 basehttp 84265 6243676160 "GET /api/auth/profile/ HTTP/1.1" 200 528
+INFO 2025-09-07 21:51:32,581 basehttp 84265 6226849792 "GET /api/auth/client-info/ HTTP/1.1" 200 354
