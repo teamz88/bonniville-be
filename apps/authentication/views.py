@@ -273,7 +273,7 @@ class ForgotPasswordView(APIView):
         ])
         
         # Create magic link
-        reset_link = f"{request.scheme}://{request.get_host()}/reset-password?token={reset_token}"
+        reset_link = f"https://bonneville.omadligrouphq.com/reset-password?token={reset_token}"
         
         # Send to n8n webhook
         webhook_data = {
