@@ -90,6 +90,31 @@ class User(AbstractUser):
         help_text="Whether user wants to receive email notifications"
     )
 
+    # Password reset fields
+    password_reset_token = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Token for password reset via magic link"
+    )
+
+    password_reset_token_created = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When the password reset token was created"
+    )
+
+    password_reset_attempts_today = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of password reset attempts made today"
+    )
+
+    password_reset_last_attempt_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Date of last password reset attempt"
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

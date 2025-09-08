@@ -15,6 +15,8 @@ urlpatterns = [
     # User profile endpoints
     path('profile/', views.UserProfileView.as_view(), name='profile'),
     path('change-password/', views.ChangePasswordView.as_view(), name='change_password'),
+    path('forgot-password/', views.ForgotPasswordView.as_view(), name='forgot_password'),
+    path('reset-password/', views.ResetPasswordView.as_view(), name='reset_password'),
     path('stats/', views.user_stats, name='user_stats'),
     
     # Admin user management endpoints

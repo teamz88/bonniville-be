@@ -7,6 +7,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import login
 from django.db.models import Q
 from django.utils import timezone
+from datetime import date
+import requests
+import uuid
 
 from .models import User, UserSession, ClientInfo
 from .serializers import (
@@ -217,6 +220,132 @@ class ChangePasswordView(APIView):
         
         return Response({
             'message': 'Password changed successfully'
+        }, status=status.HTTP_200_OK)
+
+
+class ForgotPasswordView(APIView):
+    """Forgot password endpoint - sends magic link via n8n webhook."""
+    
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response({
+                'error': 'Email is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Return error if user doesn't exist
+            return Response({
+                'error': 'No account found with this email address.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check daily reset attempt limit
+        today = date.today()
+        if user.password_reset_last_attempt_date == today:
+            if user.password_reset_attempts_today >= 3:
+                return Response({
+                    'error': 'You have reached the maximum number of password reset attempts for today. Please try again tomorrow.'
+                }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        else:
+            # Reset counter for new day
+            user.password_reset_attempts_today = 0
+        
+        # Increment attempt counter
+        user.password_reset_attempts_today += 1
+        user.password_reset_last_attempt_date = today
+        
+        # Generate unique reset token
+        reset_token = str(uuid.uuid4())
+        
+        # Store reset token in user model
+        user.password_reset_token = reset_token
+        user.password_reset_token_created = timezone.now()
+        user.save(update_fields=[
+            'password_reset_token', 
+            'password_reset_token_created',
+            'password_reset_attempts_today',
+            'password_reset_last_attempt_date'
+        ])
+        
+        # Create magic link
+        reset_link = f"{request.scheme}://{request.get_host()}/reset-password?token={reset_token}"
+        
+        # Send to n8n webhook
+        webhook_data = {
+            'email': email,
+            'reset_link': reset_link,
+            'user_name': user.get_full_name() or user.email
+        }
+        
+        try:
+            # Replace with your actual n8n webhook URL
+            webhook_url = "https://n8n.omadligrouphq.com/webhook/reset-password"
+            response = requests.post(webhook_url, json=webhook_data, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            return Response({
+                'error': 'Failed to send reset email. Please try again later.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response({
+            'message': 'Password reset link has been sent to your email address.'
+        }, status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(APIView):
+    """Reset password endpoint using magic link token."""
+    
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        token = request.data.get('token')
+        new_password = request.data.get('new_password')
+        
+        if not token or not new_password:
+            return Response({
+                'error': 'Token and new password are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(password_reset_token=token)
+        except User.DoesNotExist:
+            return Response({
+                'error': 'Invalid or expired reset token'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if token is not older than 24 hours
+        if user.password_reset_token_created:
+            token_age = timezone.now() - user.password_reset_token_created
+            if token_age.total_seconds() > 86400:  # 24 hours
+                return Response({
+                    'error': 'Reset token has expired'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Reset password
+        user.set_password(new_password)
+        user.password_reset_token = None
+        user.password_reset_token_created = None
+        user.save(update_fields=['password', 'password_reset_token', 'password_reset_token_created'])
+        
+        # Generate JWT tokens for auto-login
+        refresh = RefreshToken.for_user(user)
+        
+        # Update last login
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
+        
+        return Response({
+            'message': 'Password reset successfully',
+            'user': UserProfileSerializer(user).data,
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }
         }, status=status.HTTP_200_OK)
 
 
