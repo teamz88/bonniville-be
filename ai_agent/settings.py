@@ -210,6 +210,10 @@ CORS_ALLOWED_METHODS = [
 FILE_STORAGE_ROOT = env('FILE_STORAGE_ROOT', default=str(BASE_DIR / 'media' / 'uploads'))
 FILE_STORAGE_MAX_SIZE = env.int('FILE_STORAGE_MAX_SIZE', default=1024 * 1024 * 1024)  # 1GB default
 
+# Django file upload settings - 200MB limit
+DATA_UPLOAD_MAX_MEMORY_SIZE = 200 * 1024 * 1024  # 200MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 200 * 1024 * 1024  # 200MB
+
 # Celery Configuration (for background tasks)
 CELERY_BROKER_URL = env('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = env('REDIS_URL', default='redis://localhost:6379/0')
