@@ -349,20 +349,15 @@ class ResetPasswordView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class UserListView(generics.ListAPIView):
-    """Admin-only endpoint to list all users."""
+class RegularUsersListView(generics.ListAPIView):
+    """Admin-only endpoint to list users with role 'user'."""
     
-    queryset = User.objects.all()
     serializer_class = UserListSerializer
     permission_classes = [IsAdminUser]
     
     def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Filter by role
-        role = self.request.query_params.get('role')
-        if role:
-            queryset = queryset.filter(role=role)
+        # Faqat role 'user' bo'lgan foydalanuvchilarni qaytarish
+        queryset = User.objects.filter(role='user')
         
         # Filter by subscription status
         subscription_status = self.request.query_params.get('subscription_status')
@@ -390,6 +385,9 @@ class UserListView(generics.ListAPIView):
             queryset = queryset.order_by(ordering)
         
         return queryset
+
+
+
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
