@@ -7,6 +7,7 @@ from django.conf import settings
 from django.utils import timezone
 from markdownify import markdownify as md
 from .models import Conversation, ChatMessage, ChatTemplate, Folder
+from apps.core.notifications import notification_service
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,15 @@ class AIService:
         self.max_tokens = 4000
         self.temperature = 0.7
     
-    def generate_response(self, message: str, conversation_history: list = None) -> Dict[str, Any]:
+    def generate_response(self, message: str, conversation_history: list = None, user=None, conversation_id: str = None, token: str = None) -> Dict[str, Any]:
         """Generate AI response to user message using external RAG API.
         
         Args:
             message: User's input message
             conversation_history: List of previous messages for context
+            user: User instance for notifications
+            conversation_id: Conversation ID for tracking
+            token: JWT token for API calls
             
         Returns:
             Dict containing response, tokens used, metadata, and sources
@@ -32,6 +36,18 @@ class AIService:
         start_time = time.time()
         
         try:
+            # Send notification about RAG API call
+            if user:
+                try:
+                    notification_service.send_rag_api_call_notification(
+                        user_email=user.email,
+                        question=message,
+                        api_type="chat",
+                        user_id=user.id
+                    )
+                except Exception as notification_error:
+                    logger.error(f"Failed to send RAG API call notification: {notification_error}")
+            
             # Call external RAG API with conversation history
             rag_result = self._call_rag_api(message, conversation_history)
             
@@ -55,6 +71,19 @@ class AIService:
             logger.error(f"AI service error: {str(e)}")
             response_time_ms = int((time.time() - start_time) * 1000)
             
+            # Send error notification
+            if user:
+                try:
+                    notification_service.send_rag_api_error_notification(
+                        user_email=user.email,
+                        error_message=str(e),
+                        api_type="chat",
+                        question=message,
+                        user_id=user.id
+                    )
+                except Exception as notification_error:
+                    logger.error(f"Failed to send RAG API error notification: {notification_error}")
+            
             return {
                 'response': "I apologize, but I'm experiencing technical difficulties. Please try again later.",
                 'tokens_used': 0,
@@ -64,12 +93,15 @@ class AIService:
                 'error': str(e)
             }
     
-    def generate_response_stream(self, message: str, conversation_history: list = None) -> Iterator[Dict[str, Any]]:
+    def generate_response_stream(self, message: str, conversation_history: list = None, user=None, conversation_id: str = None, token: str = None) -> Iterator[Dict[str, Any]]:
         """Generate streaming AI response to user message using external RAG API.
         
         Args:
             message: User's input message
             conversation_history: List of previous messages for context
+            user: User instance for notifications
+            conversation_id: Conversation ID for tracking
+            token: JWT token for API calls
             
         Yields:
             Dict containing streaming response data
@@ -79,6 +111,18 @@ class AIService:
         print("API ================== ")
 
         try:
+            # Send notification about RAG API call
+            if user:
+                try:
+                    notification_service.send_rag_api_call_notification(
+                        user_email=user.email,
+                        question=message,
+                        api_type="chat_stream",
+                        user_id=user.id
+                    )
+                except Exception as notification_error:
+                    logger.error(f"Failed to send RAG API call notification: {notification_error}")
+            
             # Call external RAG API with conversation history (streaming)
             for chunk in self._call_rag_api_stream(message, conversation_history):
                 # Calculate response time for each chunk
@@ -102,6 +146,19 @@ class AIService:
             logger.error(f"AI service streaming error: {str(e)}")
             response_time_ms = int((time.time() - start_time) * 1000)
             
+            # Send error notification
+            if user:
+                try:
+                    notification_service.send_rag_api_error_notification(
+                        user_email=user.email,
+                        error_message=str(e),
+                        api_type="chat_stream",
+                        question=message,
+                        user_id=user.id
+                    )
+                except Exception as notification_error:
+                    logger.error(f"Failed to send RAG API error notification: {notification_error}")
+            
             yield {
                 'type': 'error',
                 'response': "I apologize, but I'm experiencing technical difficulties. Please try again later.",
@@ -116,7 +173,7 @@ class AIService:
     def _call_rag_api(self, message: str, conversation_history: list = None) -> Dict[str, Any]:
         """Call external RAG API to get AI response and sources (non-streaming)."""
         try:
-            url = "https://bonnevillerag.omadligrouphq.com/ask-question/"
+            url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/ask-question/')
             headers = {
                 "Content-Type": "application/json"
             }
@@ -189,7 +246,7 @@ Try rephrasing your question with specific business context or terminology from 
     def _call_rag_api_stream(self, message: str, conversation_history: list = None) -> Iterator[Dict[str, Any]]:
         """Call external RAG API to get streaming AI response and sources."""
         try:
-            url = "https://bonnevillerag.omadligrouphq.com/ask-question/"
+            url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/ask-question/')
             headers = {
                 "Content-Type": "application/json",
                 "Accept": "text/event-stream"
@@ -245,27 +302,55 @@ Try rephrasing your question with specific business context or terminology from 
                             if json_data.get('type') == 'sources':
                                 # This is source information
                                 source_doc = json_data['content']
+                                matches = json_data.get('matches', [])
                                 logger.info(f"Source document: {source_doc}")
+                                logger.info(f"Matches with page numbers: {matches}")
                                 
-                                # Extract document names from source string into list format
+                                # Extract document names and create object format with page numbers
                                 if source_doc.startswith("Sources: "):
                                     # Remove "Sources: " prefix and split by comma
                                     sources_text = source_doc.replace("Sources: ", "")
                                     document_list = [doc.strip() for doc in sources_text.split(",")]
                                     logger.info(f"Extracted document list: {document_list}")
                                     
-                                    # Add each document to sources if not already present
+                                    # Create source objects with filename and page from matches
                                     for doc in document_list:
-                                        if doc not in sources:
-                                            sources.append(doc)
+                                        # Find matching page number from matches array
+                                        page_number = None
+                                        for match in matches:
+                                            if match.get('filename') == doc:
+                                                page_number = match.get('page_number')
+                                                break
+                                        
+                                        # Create source object
+                                        source_obj = {
+                                            'filename': doc,
+                                            'page': page_number
+                                        }
+                                        
+                                        # Add to sources if not already present (check by filename)
+                                        if not any(s.get('filename') == doc for s in sources):
+                                            sources.append(source_obj)
                                 else:
                                     # Handle single source document
-                                    if source_doc not in sources:
-                                        sources.append(source_doc)
+                                    page_number = None
+                                    for match in matches:
+                                        if match.get('filename') == source_doc:
+                                            page_number = match.get('page_number')
+                                            break
+                                    
+                                    source_obj = {
+                                        'filename': source_doc,
+                                        'page': page_number
+                                    }
+                                    
+                                    if not any(s.get('filename') == source_doc for s in sources):
+                                        sources.append(source_obj)
                                     
                                 yield {
                                     'type': 'source_document',
-                                    'source': sources
+                                    'source': sources,
+                                    'matches': matches
                                 }
                                     
                         except json.JSONDecodeError as e:
@@ -353,7 +438,7 @@ Try rephrasing your question with specific business context or terminology from 
             source_document: String like "Sources: Meeting Rhythms & GSRs.docx, Q3 Strategy Planning _ Mid-Year Review Guide.docx"
             
         Returns:
-            List of document names: ["Meeting Rhythms & GSRs.docx", "Q3 Strategy Planning _ Mid-Year Review Guide.docx"]
+            List of document objects with filename and page: [{"filename": "Meeting Rhythms & GSRs.docx", "page": None}, ...]
         """
         if not source_document:
             return []
@@ -366,10 +451,16 @@ Try rephrasing your question with specific business context or terminology from 
             # Split by comma and clean up each document name
             documents = [doc.strip() for doc in source_document.split(',')]
             
-            # Filter out empty strings
-            documents = [doc for doc in documents if doc]
+            # Filter out empty strings and create source objects
+            source_objects = []
+            for doc in documents:
+                if doc:
+                    source_objects.append({
+                        'filename': doc,
+                        'page': None  # Page number not available in non-streaming API
+                    })
             
-            return documents
+            return source_objects
             
         except Exception as e:
             logger.error(f"Error extracting sources from document: {str(e)}")
@@ -449,7 +540,9 @@ class ChatService:
             # Generate AI response
             ai_result = self.ai_service.generate_response(
                 message_content,
-                conversation_history
+                conversation_history,
+                user=user,
+                conversation_id=str(conversation.id)
             )
             
             # Create assistant message
@@ -560,7 +653,12 @@ class ChatService:
             sources = []
             
             # Stream AI response
-            for chunk in self.ai_service.generate_response_stream(message_content, conversation_history):
+            for chunk in self.ai_service.generate_response_stream(
+                message_content, 
+                conversation_history,
+                user=user,
+                conversation_id=str(conversation.id)
+            ):
                 # Update accumulated response for delta chunks
                 if chunk.get('type') == 'delta':
                     accumulated_response = chunk.get('accumulated_response', '')
@@ -759,9 +857,9 @@ class FeedbackService:
     """Service for handling feedback interactions with RAG API."""
     
     def __init__(self):
-        self.rag_base_url = "https://bonnevillerag.omadligrouphq.com"
+        self.rag_base_url = getattr(settings, 'RAG_BASE_URL', 'https://bonneragpage.omadligrouphq.com')
     
-    def submit_thumbs_feedback(self, question: str, answer: str, feedback_type: str, comment: str = None) -> Dict[str, Any]:
+    def submit_thumbs_feedback(self, question: str, answer: str, feedback_type: str, comment: str = None, user=None) -> Dict[str, Any]:
         """Submit thumbs up/down feedback to RAG API.
         
         Args:
@@ -769,6 +867,7 @@ class FeedbackService:
             answer: The AI's response that was rated
             feedback_type: 'thumbs_up' or 'thumbs_down'
             comment: Optional comment for thumbs down feedback
+            user: User instance for notifications
             
         Returns:
             Dict containing success status and response data
@@ -794,6 +893,19 @@ class FeedbackService:
             
             # Call RAG API feedback endpoint
             response = self._call_rag_feedback_api(feedback_data)
+            
+            # Send notification about feedback submission
+            if user:
+                try:
+                    notification_service.send_rag_feedback_notification(
+                        user_email=user.email,
+                        question=question,
+                        feedback_type=feedback_type,
+                        comment=comment or "",
+                        user_id=user.id
+                    )
+                except Exception as notification_error:
+                    logger.error(f"Failed to send RAG feedback notification: {notification_error}")
             
             response_time_ms = int((time.time() - start_time) * 1000)
             

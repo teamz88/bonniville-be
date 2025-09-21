@@ -22,6 +22,7 @@ from .serializers import (
 )
 from .services import ChatService, FeedbackService
 from apps.authentication.permissions import IsOwnerOrAdmin, IsAdminUser
+from apps.core.notifications import notification_service
 
 
 class ChatView(APIView):
@@ -375,13 +376,27 @@ class FeedbackView(APIView):
         # Determine feedback type based on comment
         feedback_type = 'thumbs_up' if comment == 'thumb up' else 'thumbs_down'
         
+        # Send notification about question submission
+        try:
+            notification_service.send_question_notification(
+                user_email=request.user.email,
+                question=question,
+                user_id=request.user.id
+            )
+        except Exception as notification_error:
+            # Log error but don't fail the request
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send question notification: {notification_error}")
+        
         # Use FeedbackService to submit to RAG API
         feedback_service = FeedbackService()
         result = feedback_service.submit_thumbs_feedback(
             question=question,
             answer=answer,
             feedback_type=feedback_type,
-            comment=comment
+            comment=comment,
+            user=request.user
         )
         
         if result['success']:
@@ -392,6 +407,19 @@ class FeedbackView(APIView):
                 'rag_response': result['response']
             }, status=status.HTTP_201_CREATED)
         else:
+            # Send error notification
+            try:
+                notification_service.send_error_notification(
+                    user_email=request.user.email,
+                    error_message=result['error'],
+                    user_id=request.user.id,
+                    context="feedback_submission"
+                )
+            except Exception as notification_error:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to send error notification: {notification_error}")
+            
             return Response({
                 'error': 'Failed to submit feedback to RAG API',
                 'details': result['error'],

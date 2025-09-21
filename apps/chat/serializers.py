@@ -22,6 +22,29 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         )
     
+    def to_representation(self, instance):
+        """Custom representation to filter out empty sources."""
+        data = super().to_representation(instance)
+        
+        # Filter sources to remove empty ones and "Sources:" text
+        if data.get('sources'):
+            filtered_sources = []
+            for source in data['sources']:
+                # Handle both string and object formats
+                if isinstance(source, str):
+                    # Skip empty strings and "Sources:" text
+                    if source.strip() and source.strip() != 'Sources:':
+                        filtered_sources.append(source)
+                elif isinstance(source, dict):
+                    # Skip objects with empty filename or filename that is just "Sources:"
+                    filename = source.get('filename', '')
+                    if filename.strip() and filename.strip() != 'Sources:':
+                        filtered_sources.append(source)
+            
+            data['sources'] = filtered_sources
+        
+        return data
+    
     def validate_content(self, value):
         """Validate message content."""
         if not value or not value.strip():

@@ -59,6 +59,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.core.middleware.ErrorNotificationMiddleware',
 ]
 
 ROOT_URLCONF = 'ai_agent.urls'
@@ -206,9 +207,19 @@ CORS_ALLOWED_METHODS = [
 ]
 
 # File Storage Settings
-# Local file storage configuration
+# File Storage Settings
 FILE_STORAGE_ROOT = env('FILE_STORAGE_ROOT', default=str(BASE_DIR / 'media' / 'uploads'))
 FILE_STORAGE_MAX_SIZE = env.int('FILE_STORAGE_MAX_SIZE', default=1024 * 1024 * 1024)  # 1GB default
+
+# RAG Service URLs
+RAG_BASE_URL = env('RAG_BASE_URL', default='https://bonneragpage.omadligrouphq.com')
+RAG_CHAT_URL = env('RAG_CHAT_URL', default='https://bonneragpage.omadligrouphq.com/chat/ask')
+RAG_FILE_UPLOAD_URL = env('RAG_FILE_UPLOAD_URL', default='https://bonneragpage.omadligrouphq.com/files/upload')
+
+# NTFY Notification Settings
+NTFY_SERVER_URL = env('NTFY_SERVER_URL', default='https://ntfy.hvacvoice.com')
+NTFY_DEFAULT_TOPIC = env('NTFY_DEFAULT_TOPIC', default='bonneville')
+NTFY_DEFAULT_EMAIL = env('NTFY_DEFAULT_EMAIL', default=None)
 
 # Django file upload settings - 200MB limit
 DATA_UPLOAD_MAX_MEMORY_SIZE = 200 * 1024 * 1024  # 200MB
