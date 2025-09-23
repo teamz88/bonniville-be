@@ -173,7 +173,7 @@ class AIService:
     def _call_rag_api(self, message: str, conversation_history: list = None) -> Dict[str, Any]:
         """Call external RAG API to get AI response and sources (non-streaming)."""
         try:
-            url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/ask-question/')
+            url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/chat/ask')
             headers = {
                 "Content-Type": "application/json"
             }
@@ -246,7 +246,7 @@ Try rephrasing your question with specific business context or terminology from 
     def _call_rag_api_stream(self, message: str, conversation_history: list = None) -> Iterator[Dict[str, Any]]:
         """Call external RAG API to get streaming AI response and sources."""
         try:
-            url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/ask-question/')
+            url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/chat/ask')
             headers = {
                 "Content-Type": "application/json",
                 "Accept": "text/event-stream"

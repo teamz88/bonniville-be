@@ -22,6 +22,7 @@ from .serializers import (
 )
 from .services import AnalyticsService, ReportService, ErrorTrackingService
 from apps.authentication.permissions import IsAdminUser, IsActiveSubscription
+from apps.chat.models import ChatMessage
 
 User = get_user_model()
 
@@ -841,3 +842,96 @@ def generate_system_metrics(request):
         SystemMetricsSerializer(metrics).data,
         status=status.HTTP_201_CREATED
     )
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def qa_data(request):
+    """Get Q/A data with pagination showing user questions and answers with timestamps"""
+    try:
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 20))
+        search = request.query_params.get('search', '')
+        user_filter = request.query_params.get('user')
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        
+        # Base queryset for user messages (questions)
+        questions_query = ChatMessage.objects.filter(
+            message_type='user'
+        ).select_related('user', 'conversation')
+        
+        # Apply filters
+        if search:
+            questions_query = questions_query.filter(
+                Q(content__icontains=search) |
+                Q(user__username__icontains=search) |
+                Q(user__email__icontains=search)
+            )
+        
+        if user_filter:
+            questions_query = questions_query.filter(user_id=user_filter)
+        
+        if date_from:
+            try:
+                date_from_parsed = datetime.strptime(date_from, '%Y-%m-%d').date()
+                questions_query = questions_query.filter(created_at__date__gte=date_from_parsed)
+            except ValueError:
+                pass
+        
+        if date_to:
+            try:
+                date_to_parsed = datetime.strptime(date_to, '%Y-%m-%d').date()
+                questions_query = questions_query.filter(created_at__date__lte=date_to_parsed)
+            except ValueError:
+                pass
+        
+        # Order by creation date descending
+        questions_query = questions_query.order_by('-created_at')
+        
+        # Get total count
+        total_count = questions_query.count()
+        
+        # Apply pagination
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        questions = questions_query[start_index:end_index]
+        
+        qa_data = []
+        for question in questions:
+            # Find the corresponding assistant answer
+            answer = ChatMessage.objects.filter(
+                conversation=question.conversation,
+                message_type='assistant',
+                created_at__gt=question.created_at
+            ).order_by('created_at').first()
+            
+            qa_data.append({
+                'id': question.id,
+                'user': {
+                    'id': question.user.id,
+                    'email': question.user.email,
+                    'full_name': f"{question.user.first_name} {question.user.last_name}".strip() or question.user.username,
+                },
+                'question': question.content,
+                'answer': answer.content if answer else 'No response',
+                'question_time': question.created_at.isoformat(),
+            })
+        
+        # Calculate pagination info
+        total_pages = (total_count + page_size - 1) // page_size
+        has_next = page < total_pages
+        has_previous = page > 1
+        
+        return Response({
+            'count': total_count,
+            'next': f"?page={page + 1}" if has_next else None,
+            'previous': f"?page={page - 1}" if has_previous else None,
+            'results': qa_data,
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
