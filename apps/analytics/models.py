@@ -448,3 +448,49 @@ class ErrorLog(models.Model):
         self.save(update_fields=[
             'is_resolved', 'resolved_at', 'resolved_by', 'resolution_notes'
         ])
+
+
+class TokenUsage(models.Model):
+    """Model for tracking daily token usage by user"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='token_usage'
+    )
+    date = models.DateField()
+    
+    # Token usage metrics
+    input_tokens = models.PositiveIntegerField(default=0)
+    output_tokens = models.PositiveIntegerField(default=0)
+    total_tokens = models.PositiveIntegerField(default=0)
+    
+    # Message count
+    message_count = models.PositiveIntegerField(default=0)
+    
+    # Token usage by category
+    chat_tokens = models.PositiveIntegerField(default=0)
+    admin_tokens = models.PositiveIntegerField(default=0)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'token_usage'
+        unique_together = ['user', 'date']
+        ordering = ['-date', 'user']
+        indexes = [
+            models.Index(fields=['user', 'date']),
+            models.Index(fields=['date']),
+            models.Index(fields=['user', '-date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.date} - {self.total_tokens} tokens"
+    
+    def save(self, *args, **kwargs):
+        # Calculate total tokens
+        self.total_tokens = self.input_tokens + self.output_tokens
+        super().save(*args, **kwargs)

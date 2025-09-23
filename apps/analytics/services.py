@@ -411,6 +411,18 @@ class AnalyticsService:
         # Current stats
         today = timezone.now().date()
         
+        # Token usage stats
+        from .models import TokenUsage
+        token_stats = TokenUsage.objects.filter(
+            date__gte=start_date,
+            date__lte=end_date
+        ).aggregate(
+            total_tokens=Sum('total_tokens'),
+            total_input_tokens=Sum('input_tokens'),
+            total_output_tokens=Sum('output_tokens'),
+            total_messages=Sum('message_count')
+        )
+        
         stats = {
             # User stats
             'total_users': User.objects.count(),
@@ -433,6 +445,12 @@ class AnalyticsService:
             ).aggregate(
                 total=Sum('file_size')
             )['total'] or 0,
+            
+            # Token usage stats
+            'total_tokens_used': token_stats['total_tokens'] or 0,
+            'total_input_tokens': token_stats['total_input_tokens'] or 0,
+            'total_output_tokens': token_stats['total_output_tokens'] or 0,
+            'token_messages_count': token_stats['total_messages'] or 0,
             
             # Performance stats (from latest system metrics)
             'avg_response_time': 0.0,

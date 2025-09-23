@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Sum, Count, Avg
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, Http404
 from datetime import datetime, timedelta, date
 from typing import Dict, Any
@@ -12,13 +13,14 @@ import json
 
 from .models import (
     AnalyticsEvent, UserActivity, SystemMetrics, Report,
-    FeatureUsage, ErrorLog, PaymentRecord
+    FeatureUsage, ErrorLog, PaymentRecord, TokenUsage
 )
 from .serializers import (
     AnalyticsEventSerializer, CreateEventSerializer, UserActivitySerializer,
     SystemMetricsSerializer, ReportSerializer, CreateReportSerializer,
     FeatureUsageSerializer, ErrorLogSerializer, DashboardStatsSerializer,
-    AnalyticsFilterSerializer
+    AnalyticsFilterSerializer, TokenUsageSerializer, TokenUsageByUserSerializer,
+    TokenUsageStatsSerializer
 )
 from .services import AnalyticsService, ReportService, ErrorTrackingService
 from apps.authentication.permissions import IsAdminUser, IsActiveSubscription
@@ -929,6 +931,125 @@ def qa_data(request):
             'next': f"?page={page + 1}" if has_next else None,
             'previous': f"?page={page - 1}" if has_previous else None,
             'results': qa_data,
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def token_usage_by_user(request):
+    """Get token usage statistics by user"""
+    try:
+        # Get date range from query parameters
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        
+        # Default to last 30 days if no dates provided or empty strings
+        if not end_date or end_date.strip() == '':
+            end_date = timezone.now().date()
+        else:
+            try:
+                end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            except ValueError:
+                end_date = timezone.now().date()
+            
+        if not start_date or start_date.strip() == '':
+            start_date = end_date - timedelta(days=30)
+        else:
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            except ValueError:
+                start_date = end_date - timedelta(days=30)
+        
+        # Get token usage from ChatMessage model grouped by user (like Farmon)
+        processed_data = []
+        
+        # Get all users who have sent messages in the date range
+        users_with_messages = User.objects.filter(
+            chat_messages__created_at__date__gte=start_date,
+            chat_messages__created_at__date__lte=end_date
+        ).distinct()
+        
+        total_tokens_all = 0
+        total_input_tokens_all = 0
+        total_output_tokens_all = 0
+        total_messages_all = 0
+        
+        for user in users_with_messages:
+            # Get messages for this user in the date range
+            user_messages = ChatMessage.objects.filter(
+                user=user,
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date
+            )
+            
+            # Calculate token statistics
+            total_tokens = user_messages.aggregate(
+                total=Sum('tokens_used')
+            )['total'] or 0
+            
+            input_tokens = user_messages.aggregate(
+                total=Sum('input_tokens')
+            )['total'] or 0
+            
+            output_tokens = user_messages.aggregate(
+                total=Sum('output_tokens')
+            )['total'] or 0
+            
+            message_count = user_messages.count()
+            
+            # Only include users with actual token usage
+            if total_tokens > 0 or input_tokens > 0 or output_tokens > 0:
+                # Calculate full name
+                full_name = ""
+                if user.first_name and user.last_name:
+                    full_name = f"{user.first_name} {user.last_name}"
+                else:
+                    full_name = user.username
+                
+                # Calculate average tokens per message
+                avg_tokens_per_message = 0
+                if message_count > 0:
+                    avg_tokens_per_message = round(total_tokens / message_count, 2)
+                
+                processed_data.append({
+                    'user_id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'full_name': full_name,
+                    'total_tokens_used': total_tokens,
+                    'input_tokens_used': input_tokens,
+                    'output_tokens_used': output_tokens,
+                    'message_count': message_count,
+                    'avg_tokens_per_message': avg_tokens_per_message
+                })
+                
+                # Add to totals
+                total_tokens_all += total_tokens
+                total_input_tokens_all += input_tokens
+                total_output_tokens_all += output_tokens
+                total_messages_all += message_count
+        
+        # Sort by total tokens used (descending)
+        processed_data.sort(key=lambda x: x['total_tokens_used'], reverse=True)
+        
+        # Calculate averages
+        avg_tokens_per_message = 0
+        if total_messages_all > 0:
+            avg_tokens_per_message = round(total_tokens_all / total_messages_all, 2)
+        
+        return Response({
+            'success': True,
+            'data': processed_data,
+            'total_users': len(processed_data),
+            'date_range': {
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat()
+            }
         })
         
     except Exception as e:

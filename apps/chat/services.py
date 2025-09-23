@@ -49,18 +49,20 @@ class AIService:
                     logger.error(f"Failed to send RAG API call notification: {notification_error}")
             
             # Call external RAG API with conversation history
-            rag_result = self._call_rag_api(message, conversation_history)
+            rag_result = self._call_rag_api(message, conversation_history, user)
             
             # Calculate response time
             response_time_ms = int((time.time() - start_time) * 1000)
             
             # Mock token calculation
-            tokens_used = self._calculate_tokens(message, rag_result['response'])
+            token_data = self._calculate_tokens(message, rag_result['response'])
             
             return {
                 'response': rag_result['response'],
                 'sources': rag_result['sources'],
-                'tokens_used': tokens_used,
+                'tokens_used': token_data['total_tokens'],
+                'input_tokens': token_data['input_tokens'],
+                'output_tokens': token_data['output_tokens'],
                 'response_time_ms': response_time_ms,
                 'model_used': 'rag-junkgpt-ai',
                 'success': True,
@@ -124,7 +126,7 @@ class AIService:
                     logger.error(f"Failed to send RAG API call notification: {notification_error}")
             
             # Call external RAG API with conversation history (streaming)
-            for chunk in self._call_rag_api_stream(message, conversation_history):
+            for chunk in self._call_rag_api_stream(message, conversation_history, user):
                 # Calculate response time for each chunk
                 response_time_ms = int((time.time() - start_time) * 1000)
                 
@@ -137,8 +139,11 @@ class AIService:
                 })
                 
                 # Calculate tokens for complete responses
-                if chunk.get('type') == 'success':
-                    chunk['tokens_used'] = self._calculate_tokens(message, chunk.get('accumulated_response', ''))
+                if chunk.get('type') == 'complete':
+                    token_data = self._calculate_tokens(message, chunk.get('accumulated_response', ''))
+                    chunk['tokens_used'] = token_data['total_tokens']
+                    chunk['input_tokens'] = token_data['input_tokens']
+                    chunk['output_tokens'] = token_data['output_tokens']
                 
                 yield chunk
                 
@@ -170,9 +175,20 @@ class AIService:
                 'error': str(e)
             }
     
-    def _call_rag_api(self, message: str, conversation_history: list = None) -> Dict[str, Any]:
+    def _call_rag_api(self, message: str, conversation_history: list = None, user=None) -> Dict[str, Any]:
         """Call external RAG API to get AI response and sources (non-streaming)."""
         try:
+            # Send notification for RAG API call
+            from apps.core.notifications import notification_service
+            user_email = user.email if user else 'anonymous'
+            user_id = user.id if user else None
+            notification_service.send_rag_api_call_notification(
+                user_email=user_email,
+                question=message,
+                api_type="chat",
+                user_id=user_id
+            )
+            
             url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/chat/ask')
             headers = {
                 "Content-Type": "application/json"
@@ -180,7 +196,16 @@ class AIService:
             
             # Format conversation history according to the required structure
             question_data = self._format_conversation_for_api(message, conversation_history)
-            data = {"question": question_data}
+            
+            # Get user info for personalized responses
+            user_info = self._get_user_info(user)
+            
+            data = {
+                "question": question_data,
+                "user_info": {
+                    "email": user.email if user else "anonymous"
+                }
+            }
 
             
             response = requests.post(url, json=data, headers=headers, timeout=30)
@@ -243,9 +268,20 @@ Try rephrasing your question with specific business context or terminology from 
                 'sources': []
             }
     
-    def _call_rag_api_stream(self, message: str, conversation_history: list = None) -> Iterator[Dict[str, Any]]:
+    def _call_rag_api_stream(self, message: str, conversation_history: list = None, user=None) -> Iterator[Dict[str, Any]]:
         """Call external RAG API to get streaming AI response and sources."""
         try:
+            # Send notification for RAG API streaming call
+            from apps.core.notifications import notification_service
+            user_email = user.email if user else 'anonymous'
+            user_id = user.id if user else None
+            notification_service.send_rag_api_call_notification(
+                user_email=user_email,
+                question=message,
+                api_type="streaming_chat",
+                user_id=user_id
+            )
+            
             url = getattr(settings, 'RAG_CHAT_URL', 'https://bonneragpage.omadligrouphq.com/chat/ask')
             headers = {
                 "Content-Type": "application/json",
@@ -254,7 +290,16 @@ Try rephrasing your question with specific business context or terminology from 
             
             # Format conversation history according to the required structure
             question_data = self._format_conversation_for_api(message, conversation_history)
-            data = {"question": question_data}
+            
+            # Get user info for personalized responses
+            user_info = self._get_user_info(user)
+            
+            data = {
+                "question": question_data,
+                "user_info": {
+                    "email": user.email if user else "anonymous"
+                }
+            }
 
             logger.error(f"DATA =================: {str(data)}")
             
@@ -306,46 +351,21 @@ Try rephrasing your question with specific business context or terminology from 
                                 logger.info(f"Source document: {source_doc}")
                                 logger.info(f"Matches with page numbers: {matches}")
                                 
-                                # Extract document names and create object format with page numbers
-                                if source_doc.startswith("Sources: "):
-                                    # Remove "Sources: " prefix and split by comma
-                                    sources_text = source_doc.replace("Sources: ", "")
-                                    document_list = [doc.strip() for doc in sources_text.split(",")]
-                                    logger.info(f"Extracted document list: {document_list}")
+                                # Create source objects from matches array (more reliable than parsing content)
+                                for match in matches:
+                                    filename = match.get('filename')
+                                    page_number = match.get('page_number')
                                     
-                                    # Create source objects with filename and page from matches
-                                    for doc in document_list:
-                                        # Find matching page number from matches array
-                                        page_number = None
-                                        for match in matches:
-                                            if match.get('filename') == doc:
-                                                page_number = match.get('page_number')
-                                                break
-                                        
+                                    if filename:
                                         # Create source object
                                         source_obj = {
-                                            'filename': doc,
+                                            'filename': filename,
                                             'page': page_number
                                         }
                                         
                                         # Add to sources if not already present (check by filename)
-                                        if not any(s.get('filename') == doc for s in sources):
+                                        if not any(s.get('filename') == filename for s in sources):
                                             sources.append(source_obj)
-                                else:
-                                    # Handle single source document
-                                    page_number = None
-                                    for match in matches:
-                                        if match.get('filename') == source_doc:
-                                            page_number = match.get('page_number')
-                                            break
-                                    
-                                    source_obj = {
-                                        'filename': source_doc,
-                                        'page': page_number
-                                    }
-                                    
-                                    if not any(s.get('filename') == source_doc for s in sources):
-                                        sources.append(source_obj)
                                     
                                 yield {
                                     'type': 'source_document',
@@ -466,10 +486,53 @@ Try rephrasing your question with specific business context or terminology from 
             logger.error(f"Error extracting sources from document: {str(e)}")
             return []
     
-    def _calculate_tokens(self, input_text: str, output_text: str) -> int:
-        """Mock token calculation (roughly 4 characters per token)."""
-        total_chars = len(input_text) + len(output_text)
-        return max(1, total_chars // 4)
+    def _calculate_tokens(self, input_text: str, output_text: str) -> Dict[str, int]:
+        """Mock token calculation (roughly 4 characters per token).
+        
+        Returns:
+            Dict with input_tokens, output_tokens, and total_tokens
+        """
+        input_tokens = max(1, len(input_text) // 4)
+        output_tokens = max(1, len(output_text) // 4)
+        total_tokens = input_tokens + output_tokens
+        
+        return {
+            'input_tokens': input_tokens,
+            'output_tokens': output_tokens,
+            'total_tokens': total_tokens
+        }
+
+    def _get_user_info(self, user) -> dict:
+        """Get user information for RAG API personalization.
+        
+        Args:
+            user: User instance
+            
+        Returns:
+            Dictionary containing user information for RAG API
+        """
+        if not user:
+            return {}
+        
+        try:
+            # For bonniville, we'll use basic user information
+            # This can be extended based on available user profile models
+            return {
+                "email": user.email,
+                "username": user.username if hasattr(user, 'username') else user.email,
+                "first_name": getattr(user, 'first_name', ''),
+                "last_name": getattr(user, 'last_name', ''),
+                "date_joined": user.date_joined.isoformat() if hasattr(user, 'date_joined') else '',
+                "is_active": getattr(user, 'is_active', True),
+                "user_type": "bonniville_user"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting user info: {str(e)}")
+            return {
+                "email": user.email if user else "anonymous",
+                "user_type": "bonniville_user"
+            }
 
 
 class ChatService:

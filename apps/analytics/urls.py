@@ -47,4 +47,5 @@ urlpatterns = [
     
     # QA Management
     path('qa-data/', views.qa_data, name='qa-data'),
+    path('token-usage-by-user/', views.token_usage_by_user, name='token_usage_by_user'),
 ]

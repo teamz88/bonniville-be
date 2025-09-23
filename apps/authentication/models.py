@@ -84,6 +84,28 @@ class User(AbstractUser):
         help_text="Total time spent in the application"
     )
 
+    # Token usage tracking
+    total_tokens_used = models.PositiveIntegerField(
+        default=0,
+        help_text="Total number of tokens used by the user"
+    )
+
+    input_tokens_used = models.PositiveIntegerField(
+        default=0,
+        help_text="Total input tokens used by the user"
+    )
+
+    output_tokens_used = models.PositiveIntegerField(
+        default=0,
+        help_text="Total output tokens used by the user"
+    )
+
+    last_token_usage_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Last time user used tokens"
+    )
+
     # Preferences
     email_notifications = models.BooleanField(
         default=True,

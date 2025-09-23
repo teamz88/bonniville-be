@@ -207,6 +207,18 @@ class ChatMessage(models.Model):
         blank=True,
         help_text="Number of tokens used for this message"
     )
+
+    input_tokens = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of input tokens used for this message"
+    )
+
+    output_tokens = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Number of output tokens used for this message"
+    )
     
     model_used = models.CharField(
         max_length=100,
@@ -264,9 +276,63 @@ class ChatMessage(models.Model):
         return f"{self.message_type} - {self.content[:50]}..."
     
     def save(self, *args, **kwargs):
+        """Override save to update conversation stats and user token usage."""
+        is_new = self.pk is None
         super().save(*args, **kwargs)
         
-        # Update conversation stats when message is saved
+        # Update conversation stats
+        if is_new:
+            self.conversation.update_stats()
+            
+            # Update user token usage if this is an assistant message with token data
+            if (self.message_type == self.MessageType.ASSISTANT and 
+                self.tokens_used is not None and self.user):
+                
+                # Update user's token usage
+                user = self.user
+                user.total_tokens_used += self.tokens_used or 0
+                
+                if self.input_tokens:
+                    user.input_tokens_used += self.input_tokens
+                if self.output_tokens:
+                    user.output_tokens_used += self.output_tokens
+                    
+                user.last_token_usage_date = timezone.now()
+                user.save(update_fields=[
+                    'total_tokens_used', 
+                    'input_tokens_used', 
+                    'output_tokens_used', 
+                    'last_token_usage_date'
+                ])
+                
+                # Create or update TokenUsage analytics record
+                from apps.analytics.models import TokenUsage
+                from django.utils import timezone
+                
+                today = timezone.now().date()
+                token_usage, created = TokenUsage.objects.get_or_create(
+                    user=user,
+                    date=today,
+                    defaults={
+                        'input_tokens': self.input_tokens or 0,
+                        'output_tokens': self.output_tokens or 0,
+                        'total_tokens': self.tokens_used or 0,
+                        'message_count': 1,
+                        'chat_tokens': self.tokens_used or 0,
+                        'admin_tokens': 0,
+                    }
+                )
+                
+                if not created:
+                    # Update existing record
+                    token_usage.input_tokens += self.input_tokens or 0
+                    token_usage.output_tokens += self.output_tokens or 0
+                    token_usage.total_tokens += self.tokens_used or 0
+                    token_usage.message_count += 1
+                    token_usage.chat_tokens += self.tokens_used or 0
+                    token_usage.save()
+        
+        # Update conversation timestamp when message is saved
         if self.conversation_id:
             self.conversation.updated_at = timezone.now()
             self.conversation.save(update_fields=['updated_at'])

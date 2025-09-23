@@ -4,7 +4,7 @@ from django.utils import timezone
 from datetime import datetime, timedelta
 from .models import (
     AnalyticsEvent, UserActivity, SystemMetrics, Report,
-    FeatureUsage, ErrorLog
+    FeatureUsage, ErrorLog, TokenUsage
 )
 
 User = get_user_model()
@@ -197,6 +197,67 @@ class ReportSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class TokenUsageSerializer(serializers.ModelSerializer):
+    """Serializer for token usage"""
+    user_display = serializers.CharField(source='user.username', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_full_name = serializers.SerializerMethodField()
+    avg_tokens_per_message = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TokenUsage
+        fields = [
+            'id', 'user', 'user_display', 'user_email', 'user_full_name',
+            'date', 'input_tokens', 'output_tokens', 'total_tokens',
+            'message_count', 'chat_tokens', 'admin_tokens',
+            'avg_tokens_per_message', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'user_display', 'user_email', 'user_full_name',
+            'avg_tokens_per_message', 'created_at', 'updated_at'
+        ]
+    
+    def get_user_full_name(self, obj):
+        """Get user's full name"""
+        if obj.user.first_name and obj.user.last_name:
+            return f"{obj.user.first_name} {obj.user.last_name}"
+        return obj.user.username
+    
+    def get_avg_tokens_per_message(self, obj):
+        """Calculate average tokens per message"""
+        if obj.message_count > 0:
+            return round(obj.total_tokens / obj.message_count, 2)
+        return 0
+
+
+class TokenUsageByUserSerializer(serializers.Serializer):
+    """Serializer for token usage by user aggregated data"""
+    user_id = serializers.IntegerField()
+    username = serializers.CharField()
+    email = serializers.EmailField()
+    full_name = serializers.CharField()
+    total_tokens_used = serializers.IntegerField()
+    input_tokens_used = serializers.IntegerField()
+    output_tokens_used = serializers.IntegerField()
+    admin_tokens_used = serializers.IntegerField()
+    chat_tokens_used = serializers.IntegerField()
+    message_count = serializers.IntegerField()
+    last_usage_date = serializers.DateField()
+    avg_tokens_per_message = serializers.FloatField()
+
+
+class TokenUsageStatsSerializer(serializers.Serializer):
+    """Serializer for overall token usage statistics"""
+    total_users = serializers.IntegerField()
+    total_tokens = serializers.IntegerField()
+    total_input_tokens = serializers.IntegerField()
+    total_output_tokens = serializers.IntegerField()
+    total_messages = serializers.IntegerField()
+    avg_tokens_per_message = serializers.FloatField()
+    avg_tokens_per_user = serializers.FloatField()
+    date_range = serializers.DictField()
+
+
 class CreateReportSerializer(serializers.ModelSerializer):
     """Serializer for creating reports"""
     
@@ -280,6 +341,12 @@ class DashboardStatsSerializer(serializers.Serializer):
     total_messages = serializers.IntegerField()
     total_files = serializers.IntegerField()
     total_storage_used = serializers.IntegerField()
+    
+    # Token usage stats
+    total_tokens_used = serializers.IntegerField()
+    total_input_tokens = serializers.IntegerField()
+    total_output_tokens = serializers.IntegerField()
+    token_messages_count = serializers.IntegerField()
     
     # Performance stats
     avg_response_time = serializers.FloatField()
