@@ -25,6 +25,101 @@ class FileStatus(models.TextChoices):
     DELETED = 'deleted', 'Deleted'
 
 
+class Folder(models.Model):
+    """Model for folder organization"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='file_folders'
+    )
+    
+    # Folder information
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    parent = models.ForeignKey(
+        'self',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='subfolders'
+    )
+    
+    # Access control
+    is_public = models.BooleanField(default=False)
+    is_shared = models.BooleanField(default=False)
+    
+    # Metadata
+    color = models.CharField(max_length=7, default='#3B82F6')  # Hex color
+    icon = models.CharField(max_length=50, default='folder')
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'folders'
+        ordering = ['name']
+        unique_together = ['user', 'parent', 'name']
+        indexes = [
+            models.Index(fields=['user', 'parent']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+    
+    @property
+    def is_deleted(self):
+        """Check if folder is soft deleted"""
+        return self.deleted_at is not None
+    
+    @property
+    def full_path(self):
+        """Get full path of the folder"""
+        if self.parent:
+            return f"{self.parent.full_path}/{self.name}"
+        return self.name
+    
+    def get_all_files(self):
+        """Get all files in this folder and subfolders"""
+        from django.db.models import Q
+        folder_ids = [self.id]
+        
+        # Get all subfolder IDs recursively
+        def get_subfolder_ids(folder):
+            subfolders = folder.subfolders.filter(deleted_at__isnull=True)
+            for subfolder in subfolders:
+                folder_ids.append(subfolder.id)
+                get_subfolder_ids(subfolder)
+        
+        get_subfolder_ids(self)
+        
+        return File.objects.filter(
+            folder_id__in=folder_ids,
+            deleted_at__isnull=True
+        )
+    
+    def soft_delete(self):
+        """Soft delete the folder and all its contents"""
+        self.deleted_at = timezone.now()
+        self.save()
+        
+        # Soft delete all files in this folder
+        self.files.filter(deleted_at__isnull=True).update(deleted_at=timezone.now())
+        
+        # Soft delete all subfolders recursively
+        for subfolder in self.subfolders.filter(deleted_at__isnull=True):
+            subfolder.soft_delete()
+    
+    def restore(self):
+        """Restore the folder from soft delete"""
+        self.deleted_at = None
+        self.save()
+
+
 class File(models.Model):
     """Model for file management with local storage"""
     
@@ -45,6 +140,15 @@ class File(models.Model):
         max_length=20,
         choices=FileCategory.choices,
         default=FileCategory.OTHER
+    )
+    
+    folder = models.ForeignKey(
+        'Folder',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='files',
+        help_text="Folder containing this file"
     )
     
     # Local storage information
@@ -90,6 +194,8 @@ class File(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['user', 'status']),
+            models.Index(fields=['user', 'folder']),
+            models.Index(fields=['folder', 'created_at']),
             models.Index(fields=['category', 'created_at']),
             models.Index(fields=['file_type']),
             models.Index(fields=['is_public', 'is_shared']),

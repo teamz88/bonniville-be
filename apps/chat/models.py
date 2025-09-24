@@ -16,7 +16,7 @@ class Folder(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='folders'
+        related_name='chat_folders'
     )
     
     name = models.CharField(
