@@ -307,7 +307,6 @@ class ChatMessage(models.Model):
                 
                 # Create or update TokenUsage analytics record
                 from apps.analytics.models import TokenUsage
-                from django.utils import timezone
                 
                 today = timezone.now().date()
                 token_usage, created = TokenUsage.objects.get_or_create(

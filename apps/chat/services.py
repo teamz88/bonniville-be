@@ -149,6 +149,9 @@ class AIService:
                 
         except Exception as e:
             logger.error(f"AI service streaming error: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"User: {user.email if user else 'Unknown'}")
+            logger.error(f"Message: {message[:100]}...")
             response_time_ms = int((time.time() - start_time) * 1000)
             
             # Send error notification
@@ -166,13 +169,12 @@ class AIService:
             
             yield {
                 'type': 'error',
-                'response': "I apologize, but I'm experiencing technical difficulties. Please try again later.",
+                'response': 'An error occurred while processing your message.',
                 'sources': [],
-                'tokens_used': 0,
-                'response_time_ms': response_time_ms,
-                'model_used': self.model_name,
+                'error': f"AI service error: {str(e)}",
                 'success': False,
-                'error': str(e)
+                'response_time_ms': response_time_ms,
+                'model_used': 'rag-junkgpt-ai'
             }
     
     def _call_rag_api(self, message: str, conversation_history: list = None, user=None) -> Dict[str, Any]:
@@ -396,20 +398,24 @@ Try rephrasing your question with specific business context or terminology from 
 
         except requests.exceptions.RequestException as e:
             logger.error(f"RAG API streaming request failed: {str(e)}")
+            logger.error(f"Request URL: {url}")
+            logger.error(f"Request data: {data}")
             yield {
                 'type': 'error',
                 'response': "I apologize, but I'm having trouble connecting to the knowledge base. Please try again later.",
                 'sources': [],
-                'error': str(e)
+                'error': f"RAG API connection error: {str(e)}"
             }
         except Exception as e:
             logger.error(f"RAG API streaming processing error: {str(e)}")
             logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"Request URL: {url}")
+            logger.error(f"Request data: {data}")
             yield {
                 'type': 'error',
                 'response': "I apologize, but something went wrong while processing your request. Please try again.",
                 'sources': [],
-                'error': str(e)
+                'error': f"RAG API processing error: {str(e)}"
             }
     
     def _format_conversation_for_api(self, current_message: str, conversation_history: list = None) -> list:
@@ -767,13 +773,28 @@ class ChatService:
                 yield chunk_response
                 
         except Exception as e:
+            logger.error(f"Chat service streaming error: {str(e)}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            logger.error(f"User: {user.email if user else 'Unknown'}")
+            logger.error(f"Message content: {message_content[:100]}...")
+            
+            # Try to save error to assistant message if it exists
+            try:
+                if 'assistant_message' in locals():
+                    assistant_message.content = 'An error occurred while processing your message.'
+                    assistant_message.status = ChatMessage.MessageStatus.FAILED
+                    assistant_message.error_message = str(e)
+                    assistant_message.save()
+            except Exception as save_error:
+                logger.error(f"Failed to save error to assistant message: {save_error}")
+            
             yield {
                 'type': 'error',
                 'response': 'An error occurred while processing your message.',
                 'sources': [],
                 'error': str(e),
-                 'success': False
-             }
+                'success': False
+            }
     
     def _get_conversation_history(self, conversation: Conversation, limit: int = 10) -> list:
         """Get recent conversation history for context."""
