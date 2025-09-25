@@ -289,8 +289,9 @@ class BulkFileActionSerializer(serializers.Serializer):
         max_length=50
     )
     action = serializers.ChoiceField(
-        choices=['delete', 'archive', 'make_public', 'make_private']
+        choices=['delete', 'archive', 'make_public', 'make_private', 'move']
     )
+    folder_id = serializers.UUIDField(required=False, allow_null=True)
     
     def validate_file_ids(self, value):
         """Validate file IDs exist and user has permission"""

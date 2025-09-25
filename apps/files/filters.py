@@ -68,6 +68,11 @@ class FileFilter(django_filters.FilterSet):
         method='filter_by_tags'
     )
     
+    # Folder filter
+    folder = django_filters.UUIDFilter(
+        field_name='folder_id'
+    )
+    
     # Note: Removed custom search filter to avoid conflict with DRF SearchFilter
     
     class Meta:
@@ -75,7 +80,7 @@ class FileFilter(django_filters.FilterSet):
         fields = [
             'category', 'status', 'file_type', 'extension',
             'min_size', 'max_size', 'created_after', 'created_before',
-            'is_public', 'is_shared', 'owner', 'tags'
+            'is_public', 'is_shared', 'owner', 'tags', 'folder'
         ]
     
     def filter_by_owner(self, queryset, name, value):
