@@ -7,6 +7,7 @@ app_name = 'files'
 urlpatterns = [
     # File management
     path('upload/', views.FileUploadView.as_view(), name='file_upload'),
+    path('public-upload/', views.PublicFileUploadView.as_view(), name='public_file_upload'),
     path('', views.FileListView.as_view(), name='file_list'),
     path('<uuid:id>/', views.FileDetailView.as_view(), name='file_detail'),
     path('<uuid:file_id>/download/', views.FileDownloadView.as_view(), name='file_download'),

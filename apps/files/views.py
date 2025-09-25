@@ -58,6 +58,38 @@ class FileUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class PublicFileUploadView(APIView):
+    """Public file upload endpoint - no authentication required"""
+    permission_classes = []  # No authentication required
+    parser_classes = [MultiPartParser, FormParser]
+    
+    def post(self, request):
+        serializer = FileUploadSerializer(data=request.data)
+        if serializer.is_valid():
+            file_service = FileService()
+            
+            # For public uploads, we need to handle the case where there's no user
+            # We'll create a special system user or handle anonymous uploads
+            success, file_obj, message = file_service.upload_public_file(
+                uploaded_file=serializer.validated_data['file'],
+                description=serializer.validated_data.get('description', ''),
+                tags=serializer.validated_data.get('tags', [])
+            )
+            
+            if success:
+                file_serializer = FileSerializer(file_obj, context={'request': request})
+                return Response({
+                    'message': message,
+                    'file': file_serializer.data
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    'error': message
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
 class FileListView(generics.ListAPIView):
     """List files with filtering and search"""
     serializer_class = FileSerializer

@@ -284,7 +284,86 @@ class FileService:
             error_msg = f"File upload error: {str(e)}"
             logger.error(error_msg)
             return False, None, error_msg
-    
+
+    def upload_public_file(
+        self, 
+        uploaded_file: UploadedFile, 
+        description: str = "",
+        tags: list = None
+    ) -> Tuple[bool, File, str]:
+        """Upload file for public/anonymous access"""
+        from django.contrib.auth import get_user_model
+        
+        if tags is None:
+            tags = []
+        
+        try:
+            User = get_user_model()
+            
+            # Get or create a system user for anonymous uploads
+            system_user, created = User.objects.get_or_create(
+                username='system_anonymous',
+                defaults={
+                    'email': 'system@bonniville.com',
+                    'first_name': 'System',
+                    'last_name': 'Anonymous',
+                    'is_active': True,
+                    'role': 'user'
+                }
+            )
+            
+            # Generate file path using system user ID
+            file_path = self.storage_service.generate_file_path(
+                system_user.id, uploaded_file.name
+            )
+            
+            # Determine file category
+            content_type, _ = mimetypes.guess_type(uploaded_file.name)
+            if not content_type:
+                content_type = 'application/octet-stream'
+            
+            # Create file record - always public for anonymous uploads
+            file_obj = File.objects.create(
+                user=system_user,
+                original_name=uploaded_file.name,
+                file_name=os.path.basename(file_path),
+                file_size=uploaded_file.size,
+                file_type=content_type,
+                file_extension=os.path.splitext(uploaded_file.name)[1].lower(),
+                category=self._get_category_from_mime_type(content_type),
+                bucket_name="",
+                object_key=file_path,
+                description=description,
+                tags=tags,
+                is_public=True,  # Always public for anonymous uploads
+                status=FileStatus.UPLOADING
+            )
+            
+            # Upload to local storage
+            success, message, metadata = self.storage_service.upload_file(
+                uploaded_file, file_path, content_type
+            )
+            
+            if success:
+                # Update file record
+                file_obj.status = FileStatus.COMPLETED
+                file_obj.upload_progress = 100
+                file_obj.metadata = metadata
+                file_obj.save()
+                
+                logger.info(f"Public file uploaded successfully: {file_obj.id}")
+                return True, file_obj, "File uploaded successfully"
+            else:
+                # Mark as failed
+                file_obj.status = FileStatus.FAILED
+                file_obj.save()
+                return False, file_obj, message
+                
+        except Exception as e:
+            error_msg = f"Public file upload error: {str(e)}"
+            logger.error(error_msg)
+            return False, None, error_msg
+
     def download_file(self, file_obj: File, user) -> Tuple[bool, Any, str]:
         """Download file with permission check"""
         try:
