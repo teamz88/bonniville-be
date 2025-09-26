@@ -540,6 +540,73 @@ Try rephrasing your question with specific business context or terminology from 
                 "user_type": "bonniville_user"
             }
 
+    def upload_file_to_rag(self, file_obj, user_email: str) -> Dict[str, Any]:
+        """Upload file to RAG API for processing.
+        
+        Args:
+            file_obj: File model instance
+            user_email: User's email address
+            
+        Returns:
+            Dictionary containing upload result
+        """
+        try:
+            # Get file path from storage
+            file_path = file_obj.object_key
+            if not file_path:
+                return {
+                    'success': False,
+                    'error': 'File path not found'
+                }
+            
+            # Build full file path
+            from django.conf import settings
+            import os
+            full_file_path = os.path.join(settings.MEDIA_ROOT, 'uploads', file_path)
+            if not os.path.exists(full_file_path):
+                return {
+                    'success': False,
+                    'error': 'File not found in storage'
+                }
+            
+            # Prepare file for upload
+            with open(full_file_path, 'rb') as f:
+                files = {'file': (file_obj.original_name, f, file_obj.file_type)}
+                data = {'email': user_email}
+                
+                # Upload to RAG API - using bonniville's RAG endpoint
+                rag_upload_url = getattr(settings, 'RAG_UPLOAD_URL', 'https://bonneragpage.omadligrouphq.com/files/upload/')
+                response = requests.post(
+                    rag_upload_url,
+                    files=files,
+                    data=data,
+                    timeout=60
+                )
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"File {file_obj.original_name} uploaded to RAG successfully")
+                return {
+                    'success': True,
+                    'data': result,
+                    'error': None
+                }
+            else:
+                error_msg = f"RAG upload failed with status {response.status_code}: {response.text}"
+                logger.error(error_msg)
+                return {
+                    'success': False,
+                    'error': error_msg
+                }
+                
+        except Exception as e:
+            error_msg = f"RAG file upload error: {str(e)}"
+            logger.error(error_msg)
+            return {
+                'success': False,
+                'error': error_msg
+            }
+
 
 class ChatService:
     """Service for managing chat conversations and messages."""

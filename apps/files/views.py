@@ -45,11 +45,26 @@ class FileUploadView(APIView):
             )
             
             if success:
+                # Send file to RAG API after successful upload
+                rag_success, rag_response, rag_message = file_service.send_file_to_rag_api(
+                    file_obj, request.user
+                )
+                
                 file_serializer = FileSerializer(file_obj, context={'request': request})
-                return Response({
+                response_data = {
                     'message': message,
-                    'file': file_serializer.data
-                }, status=status.HTTP_201_CREATED)
+                    'file': file_serializer.data,
+                    'rag_integration': {
+                        'success': rag_success,
+                        'message': rag_message
+                    }
+                }
+                
+                # Include RAG response data if successful
+                if rag_success and rag_response:
+                    response_data['rag_integration']['response'] = rag_response
+                
+                return Response(response_data, status=status.HTTP_201_CREATED)
             else:
                 return Response({
                     'error': message
@@ -78,10 +93,34 @@ class PublicFileUploadView(APIView):
             
             if success:
                 file_serializer = FileSerializer(file_obj, context={'request': request})
-                return Response({
+                response_data = {
                     'message': message,
                     'file': file_serializer.data
-                }, status=status.HTTP_201_CREATED)
+                }
+                
+                # Try to upload file to RAG API (non-blocking)
+                try:
+                    from apps.chat.services import AIService
+                    ai_service = AIService()
+                    # Use system_anonymous email for public uploads
+                    rag_result = ai_service.upload_file_to_rag(file_obj, 'system_anonymous@bonniville.com')
+                    
+                    if rag_result['success']:
+                        response_data['rag_upload'] = 'success'
+                        response_data['rag_message'] = 'File uploaded to RAG successfully'
+                    else:
+                        response_data['rag_upload'] = 'failed'
+                        response_data['rag_message'] = rag_result.get('error', 'RAG upload failed')
+                        
+                except Exception as e:
+                    # Log the error but don't fail the file upload
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"RAG upload failed for file {file_obj.original_name}: {str(e)}")
+                    response_data['rag_upload'] = 'failed'
+                    response_data['rag_message'] = 'RAG service temporarily unavailable'
+                
+                return Response(response_data, status=status.HTTP_201_CREATED)
             else:
                 return Response({
                     'error': message

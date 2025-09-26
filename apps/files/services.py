@@ -2,6 +2,7 @@ import os
 import uuid
 import mimetypes
 import shutil
+import requests
 from datetime import datetime, timedelta
 from typing import Optional, Tuple, Dict, Any
 from urllib.parse import urljoin
@@ -16,6 +17,7 @@ from django.http import FileResponse, Http404
 import logging
 
 from .models import File, FileCategory, FileStatus
+from apps.core.notifications import notification_service
 
 logger = logging.getLogger(__name__)
 
@@ -580,3 +582,135 @@ class FileService:
                 return f"{size_bytes:.1f} {unit}"
             size_bytes /= 1024.0
         return f"{size_bytes:.1f} PB"
+
+    def send_file_to_rag_api(self, file_obj: File, user) -> Tuple[bool, Dict[str, Any], str]:
+        """Send uploaded file to RAG API for processing.
+        
+        Args:
+            file_obj: File object to send to RAG API
+            user: User who uploaded the file
+            
+        Returns:
+            Tuple containing success status, response data, and message
+        """
+        try:
+            # Send notification for RAG file upload
+            user_email = user.email if user else 'anonymous'
+            user_id = user.id if user else None
+            notification_service.send_rag_file_upload_notification(
+                user_email=user_email,
+                file_name=file_obj.original_name,
+                file_size=file_obj.file_size,
+                user_id=user_id
+            )
+            
+            # Check if user can access the file
+            if not self._can_access_file(file_obj, user):
+                return False, {}, "Permission denied"
+            
+            # Get the file path
+            file_path = os.path.join(self.storage_service.storage_root, file_obj.object_key)
+            
+            if not os.path.exists(file_path):
+                return False, {}, "File not found on disk"
+            
+            # Prepare RAG API request
+            rag_url = getattr(settings, 'RAG_FILE_UPLOAD_URL', 'https://bonneragpage.omadligrouphq.com/files/upload')
+            
+            # Prepare headers (let requests handle Content-Type for multipart/form-data)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; Django-FileService/1.0)'
+            }
+            
+            # Prepare file for upload - match curl --form format exactly
+            with open(file_path, 'rb') as file_data:
+                files = {
+                    'file': (file_obj.original_name, file_data, file_obj.file_type or 'application/octet-stream')
+                }
+                
+                # Create a session with custom timeout settings
+                session = requests.Session()
+                session.headers.update(headers)
+                
+                # Send request to RAG API with proper timeouts
+                # (connection_timeout, read_timeout)
+                response = session.post(
+                    rag_url,
+                    files=files,
+                    timeout=(30, 300),  # 30s connection, 5min read timeout
+                    allow_redirects=True,
+                    stream=False
+                )
+                
+                # Log response details for debugging
+                logger.info(f"RAG API response status: {response.status_code}")
+                logger.info(f"RAG API response headers: {dict(response.headers)}")
+                
+                response.raise_for_status()
+                
+                # Try to parse JSON response, fallback to text if not JSON
+                try:
+                    result = response.json()
+                except ValueError:
+                    result = {'response': response.text, 'status_code': response.status_code}
+                
+                logger.info(f"File successfully sent to RAG API: {file_obj.id}")
+                return True, result, "File sent to RAG API successfully"
+                
+        except requests.exceptions.HTTPError as e:
+            error_msg = f"RAG API HTTP error: {e.response.status_code} - {e.response.text if hasattr(e, 'response') else str(e)}"
+            logger.error(error_msg)
+            
+            # Send error notification
+            try:
+                user_email = getattr(user, 'email', 'Unknown')
+                user_id = getattr(user, 'id', None)
+                notification_service.send_rag_api_error_notification(
+                    user_email=user_email,
+                    error_message=error_msg,
+                    api_type="file_upload",
+                    question=f"File upload: {file_obj.original_name}",
+                    user_id=user_id
+                )
+            except Exception as notification_error:
+                logger.error(f"Failed to send error notification: {notification_error}")
+            
+            return False, {}, error_msg
+        except requests.exceptions.RequestException as e:
+            error_msg = f"RAG API request failed: {str(e)}"
+            logger.error(error_msg)
+            
+            # Send error notification
+            try:
+                user_email = getattr(user, 'email', 'Unknown')
+                user_id = getattr(user, 'id', None)
+                notification_service.send_rag_api_error_notification(
+                    user_email=user_email,
+                    error_message=error_msg,
+                    api_type="file_upload",
+                    question=f"File upload: {file_obj.original_name}",
+                    user_id=user_id
+                )
+            except Exception as notification_error:
+                logger.error(f"Failed to send error notification: {notification_error}")
+            
+            return False, {}, error_msg
+        except Exception as e:
+            error_msg = f"Error sending file to RAG API: {str(e)}"
+            logger.error(error_msg)
+            
+            # Send error notification
+            try:
+                user_email = getattr(user, 'email', 'Unknown')
+                user_id = getattr(user, 'id', None)
+                notification_service.send_rag_api_error_notification(
+                    user_email=user_email,
+                    error_message=error_msg,
+                    api_type="file_upload",
+                    question=f"File upload: {file_obj.original_name}",
+                    user_id=user_id
+                )
+            except Exception as notification_error:
+                logger.error(f"Failed to send error notification: {notification_error}")
+            
+            return False, {}, error_msg
