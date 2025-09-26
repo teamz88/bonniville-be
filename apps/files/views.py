@@ -92,33 +92,33 @@ class PublicFileUploadView(APIView):
             )
             
             if success:
+                # Send file to RAG API after successful upload (same as regular upload)
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                
+                # Get the system user for RAG integration
+                try:
+                    system_user = User.objects.get(username='system_anonymous')
+                except User.DoesNotExist:
+                    system_user = None
+                
+                rag_success, rag_response, rag_message = file_service.send_file_to_rag_api(
+                    file_obj, system_user
+                )
+                
                 file_serializer = FileSerializer(file_obj, context={'request': request})
                 response_data = {
                     'message': message,
-                    'file': file_serializer.data
+                    'file': file_serializer.data,
+                    'rag_integration': {
+                        'success': rag_success,
+                        'message': rag_message
+                    }
                 }
                 
-                # Try to upload file to RAG API (non-blocking)
-                try:
-                    from apps.chat.services import AIService
-                    ai_service = AIService()
-                    # Use system_anonymous email for public uploads
-                    rag_result = ai_service.upload_file_to_rag(file_obj, 'system_anonymous@bonniville.com')
-                    
-                    if rag_result['success']:
-                        response_data['rag_upload'] = 'success'
-                        response_data['rag_message'] = 'File uploaded to RAG successfully'
-                    else:
-                        response_data['rag_upload'] = 'failed'
-                        response_data['rag_message'] = rag_result.get('error', 'RAG upload failed')
-                        
-                except Exception as e:
-                    # Log the error but don't fail the file upload
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.error(f"RAG upload failed for file {file_obj.original_name}: {str(e)}")
-                    response_data['rag_upload'] = 'failed'
-                    response_data['rag_message'] = 'RAG service temporarily unavailable'
+                # Include RAG response data if successful
+                if rag_success and rag_response:
+                    response_data['rag_integration']['response'] = rag_response
                 
                 return Response(response_data, status=status.HTTP_201_CREATED)
             else:
