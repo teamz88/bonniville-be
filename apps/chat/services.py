@@ -374,6 +374,51 @@ Try rephrasing your question with specific business context or terminology from 
                                     'source': sources,
                                     'matches': matches
                                 }
+                            
+                            if json_data.get('type') == 'completed':
+                                # Handle completed response with sources and matches
+                                matches = json_data.get('matches', [])
+                                api_sources = json_data.get('sources', [])
+                                
+                                if matches or api_sources:
+                                    logger.info(f"Completed response with matches: {matches}")
+                                    logger.info(f"Completed response with sources: {api_sources}")
+                                    
+                                    # Create source objects from matches array (more reliable)
+                                    for match in matches:
+                                        filename = match.get('filename')
+                                        page_number = match.get('page_number')
+                                        
+                                        if filename:
+                                            # Create source object
+                                            source_obj = {
+                                                'filename': filename,
+                                                'page': page_number
+                                            }
+                                            
+                                            # Add to sources if not already present (check by filename)
+                                            if not any(s.get('filename') == filename for s in sources):
+                                                sources.append(source_obj)
+                                    
+                                    # Also handle sources array if matches is empty
+                                    if not matches and api_sources:
+                                        for source_filename in api_sources:
+                                            if source_filename and isinstance(source_filename, str):
+                                                source_obj = {
+                                                    'filename': source_filename,
+                                                    'page': None
+                                                }
+                                                
+                                                # Add to sources if not already present
+                                                if not any(s.get('filename') == source_filename for s in sources):
+                                                    sources.append(source_obj)
+                                    
+                                    # Yield source document event
+                                    yield {
+                                        'type': 'source_document',
+                                        'source': sources,
+                                        'matches': matches
+                                    }
                                     
                         except json.JSONDecodeError as e:
                             # If not JSON, treat as plain text streaming
