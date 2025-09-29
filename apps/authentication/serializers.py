@@ -163,7 +163,7 @@ class UserListSerializer(serializers.ModelSerializer):
     
     def get_total_payments(self, obj):
         """Get total number of payments made by user."""
-        return obj.payments.count()
+        return obj.payment_records.count()
 
 
 class ChangePasswordSerializer(serializers.Serializer):

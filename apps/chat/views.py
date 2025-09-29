@@ -5,8 +5,10 @@ from rest_framework.views import APIView
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, HttpResponse
 import json
+import requests
+import logging
 
 from .models import Conversation, ChatMessage, ChatTemplate, Folder
 from .serializers import (
@@ -795,3 +797,52 @@ class RAGConversationHistoryView(APIView):
         serializer = RAGMessageSerializer(rag_messages, many=True)
         
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([])  # Explicitly allow public access
+def download_rag_file(request, filename):
+    """
+    Download a file from RAG service through backend proxy.
+    This is a public endpoint that doesn't require authentication.
+    """
+    try:
+        # Get RAG file download URL from settings
+        from django.conf import settings
+        rag_file_download_url = getattr(settings, 'RAG_FILE_DOWNLOAD_URL', 'http://t8s4w4w8k8goos4gw0o4s8o8.84.46.243.247.sslip.io/files/download')
+        
+        # Construct the full URL
+        file_url = f"{rag_file_download_url}/{filename}"
+        
+        # Log the download request (without user info since it's public)
+        logger = logging.getLogger(__name__)
+        logger.info(f"Public file download request: {filename}")
+        
+        # Make request to RAG service
+        response = requests.get(file_url, timeout=30, stream=True)
+        response.raise_for_status()
+        
+        # Create Django response with the file content
+        django_response = HttpResponse(
+            response.content,
+            content_type=response.headers.get('content-type', 'application/octet-stream')
+        )
+        
+        # Set appropriate headers for file download
+        django_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        django_response['Content-Length'] = response.headers.get('content-length', len(response.content))
+        
+        return django_response
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to download file {filename}: {str(e)}")
+        return Response(
+            {'error': f'Failed to download file: {str(e)}'}, 
+            status=status.HTTP_502_BAD_GATEWAY
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error downloading file {filename}: {str(e)}")
+        return Response(
+            {'error': 'An unexpected error occurred'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

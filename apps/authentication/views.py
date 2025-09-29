@@ -387,6 +387,48 @@ class RegularUsersListView(generics.ListAPIView):
         return queryset
 
 
+class UserListView(generics.ListAPIView):
+    """Admin-only endpoint to list all users."""
+    
+    serializer_class = UserListSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        queryset = User.objects.all()
+        
+        # Filter by role
+        role = self.request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(role=role)
+        
+        # Filter by subscription status
+        subscription_status = self.request.query_params.get('subscription_status')
+        if subscription_status:
+            queryset = queryset.filter(subscription_status=subscription_status)
+        
+        # Filter by subscription type
+        subscription_type = self.request.query_params.get('subscription_type')
+        if subscription_type:
+            queryset = queryset.filter(subscription_type=subscription_type)
+        
+        # Search by username, email, or name
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(username__icontains=search) |
+                Q(email__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search)
+            )
+        
+        # Order by
+        ordering = self.request.query_params.get('ordering', '-date_joined')
+        if ordering:
+            queryset = queryset.order_by(ordering)
+        
+        return queryset
+
+
 
 
 
@@ -430,6 +472,50 @@ class UserSessionListView(generics.ListAPIView):
             queryset = UserSession.objects.filter(user=self.request.user)
         
         return queryset.order_by('-session_start')
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def change_user_role(request, user_id):
+    """Admin endpoint to change user role."""
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    new_role = request.data.get('role')
+    
+    if not new_role:
+        return Response({
+            'error': 'role is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    if new_role not in [choice[0] for choice in User.Role.choices]:
+        return Response({
+            'error': 'Invalid role'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Prevent changing own role
+    if user.id == request.user.id:
+        return Response({
+            'error': 'Cannot change your own role'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user.role = new_role
+        user.save(update_fields=['role'])
+        
+        return Response({
+            'message': 'User role changed successfully',
+            'user': UserListSerializer(user).data
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'error': 'Failed to change user role',
+            'detail': str(e)
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['POST'])

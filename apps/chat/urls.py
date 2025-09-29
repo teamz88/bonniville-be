@@ -42,4 +42,7 @@ urlpatterns = [
     
     # RAG formatted conversation history
     path('conversations/<uuid:conversation_id>/rag-history/', views.RAGConversationHistoryView.as_view(), name='rag_conversation_history'),
+    
+    # RAG file download
+    path('files/download/<str:filename>/', views.download_rag_file, name='download_rag_file'),
 ]

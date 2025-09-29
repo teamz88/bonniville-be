@@ -20,8 +20,11 @@ urlpatterns = [
     path('stats/', views.user_stats, name='user_stats'),
     
     # Admin user management endpoints
+    path('users/', views.UserListView.as_view(), name='users_list'),
     path('users/regular/', views.RegularUsersListView.as_view(), name='regular_users_list'),
     path('users/<int:pk>/', views.UserDetailView.as_view(), name='user_detail'),
+    path('users/<int:user_id>/change-role/', 
+         views.change_user_role, name='change_user_role'),
     path('users/<int:user_id>/upgrade-subscription/', 
          views.upgrade_user_subscription, name='upgrade_subscription'),
     
