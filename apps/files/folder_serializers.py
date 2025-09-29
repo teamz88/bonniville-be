@@ -20,6 +20,11 @@ class FolderSerializer(serializers.ModelSerializer):
     subfolders_count = serializers.SerializerMethodField()
     files_count = serializers.SerializerMethodField()
     full_path = serializers.CharField(read_only=True)
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.none(),
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = Folder
@@ -28,6 +33,16 @@ class FolderSerializer(serializers.ModelSerializer):
             'subfolders_count', 'files_count', 'full_path', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set the queryset for parent field based on the current user
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            self.fields['parent'].queryset = Folder.objects.filter(
+                user=request.user,
+                deleted_at__isnull=True
+            )
     
     def get_subfolders_count(self, obj):
         return obj.subfolders.filter(deleted_at__isnull=True).count()
@@ -38,10 +53,25 @@ class FolderSerializer(serializers.ModelSerializer):
 
 class FolderCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating folders"""
+    parent = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.none(),
+        required=False,
+        allow_null=True
+    )
     
     class Meta:
         model = Folder
         fields = ['name', 'description', 'color', 'parent']
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set the queryset for parent field based on the current user
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            self.fields['parent'].queryset = Folder.objects.filter(
+                user=request.user,
+                deleted_at__isnull=True
+            )
     
     def validate_name(self, value):
         """Validate folder name"""
