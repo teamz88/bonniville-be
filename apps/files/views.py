@@ -1,4 +1,5 @@
 from datetime import timedelta
+import logging
 from django.http import HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -24,6 +25,7 @@ from .services import FileService
 from .filters import FileFilter
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class FileUploadView(APIView):
