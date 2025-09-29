@@ -92,15 +92,16 @@ class PublicFileUploadView(APIView):
             )
             
             if success:
+                logger.info(f"Public file uploaded successfully: {file_obj.original_name}")
                 # Send file to RAG API after successful upload (same as regular upload)
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
+            #     from django.contrib.auth import get_user_model
+            #     User = get_user_model()
                 
-            #     # Get the system user for RAG integration
-                try:
-                    system_user = User.objects.get(username='system_anonymous')
-                except User.DoesNotExist:
-                    system_user = None
+            # #     # Get the system user for RAG integration
+            #     try:
+            #         system_user = User.objects.get(username='system_anonymous')
+            #     except User.DoesNotExist:
+            #         system_user = None
                 
             #     rag_success, rag_response, rag_message = file_service.send_file_to_rag_api(
             #         file_obj, system_user
