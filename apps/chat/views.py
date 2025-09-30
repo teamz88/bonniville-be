@@ -365,31 +365,20 @@ class FeedbackView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request):
-        """Submit feedback with question, answer, and comment to RAG API."""
+        """Submit feedback with question, answer, comment, and chunk_ids to RAG API."""
         question = request.data.get('question', '')
         answer = request.data.get('answer', '')
         comment = request.data.get('comment', '')
+        chunk_ids = request.data.get('chunk_ids', [])
+        status_value = request.data.get('status', True)  # True for positive, False for negative
         
         if not question or not answer:
             return Response({
                 'error': 'Question and answer are required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Determine feedback type based on comment
-        feedback_type = 'thumbs_up' if comment == 'thumb up' else 'thumbs_down'
-        
-        # Send notification about question submission
-        try:
-            notification_service.send_question_notification(
-                user_email=request.user.email,
-                question=question,
-                user_id=request.user.id
-            )
-        except Exception as notification_error:
-            # Log error but don't fail the request
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to send question notification: {notification_error}")
+        # Determine feedback type based on status field
+        feedback_type = 'thumbs_up' if status_value else 'thumbs_down'
         
         # Use FeedbackService to submit to RAG API
         feedback_service = FeedbackService()
@@ -398,6 +387,7 @@ class FeedbackView(APIView):
             answer=answer,
             feedback_type=feedback_type,
             comment=comment,
+            chunk_ids=chunk_ids,
             user=request.user
         )
         
@@ -409,19 +399,6 @@ class FeedbackView(APIView):
                 'rag_response': result['response']
             }, status=status.HTTP_201_CREATED)
         else:
-            # Send error notification
-            try:
-                notification_service.send_error_notification(
-                    user_email=request.user.email,
-                    error_message=result['error'],
-                    user_id=request.user.id,
-                    context="feedback_submission"
-                )
-            except Exception as notification_error:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to send error notification: {notification_error}")
-            
             return Response({
                 'error': 'Failed to submit feedback to RAG API',
                 'details': result['error'],

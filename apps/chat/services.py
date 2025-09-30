@@ -1055,15 +1055,16 @@ class FeedbackService:
     def __init__(self):
         self.rag_base_url = getattr(settings, 'RAG_BASE_URL', 'https://bonneragpage.omadligrouphq.com')
     
-    def submit_thumbs_feedback(self, question: str, answer: str, feedback_type: str, comment: str = None, user=None) -> Dict[str, Any]:
+    def submit_thumbs_feedback(self, question: str, answer: str, feedback_type: str, comment: str = None, chunk_ids: list = None, user=None) -> Dict[str, Any]:
         """Submit thumbs up/down feedback to RAG API.
         
         Args:
             question: The user's original question
             answer: The AI's response that was rated
             feedback_type: 'thumbs_up' or 'thumbs_down'
-            comment: Optional comment for thumbs down feedback
-            user: User instance for notifications
+            comment: Optional comment for feedback
+            chunk_ids: List of chunk IDs related to the response
+            user: User instance for notification
             
         Returns:
             Dict containing success status and response data
@@ -1071,39 +1072,37 @@ class FeedbackService:
         start_time = time.time()
         
         try:
-            # Prepare feedback data for RAG API
+            # Send notification for RAG feedback submission
+            user_email = user.email if user else 'anonymous'
+            user_id = user.id if user else None
+            notification_service.send_rag_feedback_notification(
+                user_email=user_email,
+                feedback_type=feedback_type,
+                question=question,
+                answer=answer,
+                user_id=user_id
+            )
+            
+            # Prepare feedback data for new RAG API format (matching Bolt's implementation)
             feedback_data = {
                 "question": question,
                 "answer": answer,
-                "feedback_type": feedback_type,
-                "timestamp": timezone.now().isoformat()
+                "comment": comment or ("Helpful explanation" if feedback_type == "thumbs_up" else "Needs improvement"),
+                "chunk_ids": chunk_ids or [],
+                "status": feedback_type == "thumbs_up",
+                "active": True
             }
-            
-            # Add comment for thumbs down feedback
-            if feedback_type == "thumbs_down" and comment:
-                feedback_data["comment"] = comment
-                self.get_feedbacks_by_status(False)
-            elif feedback_type == "thumbs_up":
-                feedback_data["comment"] = "thumb up"
-                self.get_feedbacks_by_status(True)
             
             # Call RAG API feedback endpoint
             response = self._call_rag_feedback_api(feedback_data)
             
-            # Send notification about feedback submission
-            if user:
-                try:
-                    notification_service.send_rag_feedback_notification(
-                        user_email=user.email,
-                        question=question,
-                        feedback_type=feedback_type,
-                        comment=comment or "",
-                        user_id=user.id
-                    )
-                except Exception as notification_error:
-                    logger.error(f"Failed to send RAG feedback notification: {notification_error}")
-            
             response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # Update local feedback tracking
+            if feedback_type == "thumbs_up":
+                self.get_feedbacks_by_status(True)
+            else:
+                self.get_feedbacks_by_status(False)
             
             return {
                 'success': True,
@@ -1128,12 +1127,24 @@ class FeedbackService:
     def _call_rag_feedback_api(self, feedback_data: Dict[str, Any]) -> Dict[str, Any]:
         """Call RAG API feedback endpoint."""
         try:
-            url = f"{self.rag_base_url}/feedback/"
+            url = f"{self.rag_base_url}/chat/feedbacks/"
             headers = {
                 "Content-Type": "application/json"
             }
             
+            # Log the request details for debugging
+            logger.info(f"Sending feedback to RAG API: {url}")
+            logger.info(f"Request data: {json.dumps(feedback_data, indent=2)}")
+            
             response = requests.post(url, json=feedback_data, headers=headers, timeout=30)
+            
+            # Log response details for debugging
+            logger.info(f"RAG API response status: {response.status_code}")
+            logger.info(f"RAG API response headers: {dict(response.headers)}")
+            
+            if response.status_code != 200:
+                logger.error(f"RAG API returned status {response.status_code}: {response.text}")
+            
             response.raise_for_status()
             
             result = response.json()
@@ -1141,6 +1152,10 @@ class FeedbackService:
             
             return result
             
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"RAG API HTTP error: {str(e)}")
+            logger.error(f"Response content: {e.response.text if hasattr(e, 'response') else 'No response content'}")
+            raise Exception(f"Failed to submit feedback to RAG service: {str(e)}")
         except requests.exceptions.RequestException as e:
             logger.error(f"RAG API feedback request failed: {str(e)}")
             raise Exception(f"Failed to submit feedback to RAG service: {str(e)}")
