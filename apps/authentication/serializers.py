@@ -148,7 +148,7 @@ class UserListSerializer(serializers.ModelSerializer):
             'subscription_type', 'subscription_status',
             'subscription_start_date', 'subscription_end_date',
             'is_subscription_active', 'days_until_expiry',
-            'total_time_spent', 'last_activity', 'date_joined',
+            'total_time_spent', 'last_activity', 'date_joined', 'last_login',
             'total_files', 'total_chat_messages', 'total_payments',
             'is_active'
         )

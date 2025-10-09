@@ -155,28 +155,36 @@ class ConversationListView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        queryset = self.request.user.conversations.all()
-        
+        user = self.request.user
+        # Admins can view all conversations or filter by a specific user
+        if getattr(user, 'is_admin', False):
+            queryset = Conversation.objects.all()
+            user_id = self.request.query_params.get('user_id')
+            if user_id:
+                queryset = queryset.filter(user_id=user_id)
+        else:
+            queryset = user.conversations.all()
+
         # Filter by archived status
         is_archived = self.request.query_params.get('archived')
         if is_archived is not None:
             queryset = queryset.filter(is_archived=is_archived.lower() == 'true')
-        
+
         # Filter by pinned status
         is_pinned = self.request.query_params.get('pinned')
         if is_pinned is not None:
             queryset = queryset.filter(is_pinned=is_pinned.lower() == 'true')
-        
+
         # Search by title
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(title__icontains=search)
-        
+
         # Order by
         ordering = self.request.query_params.get('ordering', '-updated_at')
         if ordering:
             queryset = queryset.order_by(ordering)
-        
+
         return queryset
     
     def perform_create(self, serializer):
@@ -203,26 +211,35 @@ class ConversationDetailView(generics.RetrieveUpdateDestroyAPIView):
         return ConversationSerializer
 
 
-class ConversationHistoryView(generics.ListAPIView):
+class ConversationHistoryView(APIView):
     """Get chat history for a specific conversation."""
-    
-    serializer_class = ChatMessageSerializer
+
     permission_classes = [IsOwnerOrAdmin]
-    
-    def get_queryset(self):
-        conversation_id = self.kwargs['conversation_id']
-        
-        # Verify user has access to this conversation
-        if self.request.user.is_admin:
-            conversation = get_object_or_404(Conversation, id=conversation_id)
+
+    def get_conversation(self, conversation_id, user):
+        """Helper method to get conversation with proper permissions."""
+        if user.is_admin:
+            return get_object_or_404(Conversation, id=conversation_id)
         else:
-            conversation = get_object_or_404(
+            return get_object_or_404(
                 Conversation,
                 id=conversation_id,
-                user=self.request.user
+                user=user
             )
-        
-        return conversation.messages.all().order_by('created_at')
+
+    def get(self, request, conversation_id):
+        """Get conversation history via GET request."""
+        conversation = self.get_conversation(conversation_id, request.user)
+        messages = conversation.messages.all().order_by('created_at')
+        serializer = ChatMessageSerializer(messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, conversation_id):
+        """Get conversation history via POST request."""
+        conversation = self.get_conversation(conversation_id, request.user)
+        messages = conversation.messages.all().order_by('created_at')
+        serializer = ChatMessageSerializer(messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class MessageFeedbackView(APIView):

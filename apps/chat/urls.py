@@ -12,6 +12,7 @@ urlpatterns = [
     path('conversations/', views.ConversationListView.as_view(), name='conversation_list'),
     path('conversations/<uuid:pk>/', views.ConversationDetailView.as_view(), name='conversation_detail'),
     path('conversations/<uuid:conversation_id>/history/', views.ConversationHistoryView.as_view(), name='conversation_history'),
+    path('conversations/<uuid:conversation_id>/history', views.ConversationHistoryView.as_view(), name='conversation_history_no_slash'),
     path('conversations/<uuid:conversation_id>/archive/', views.archive_conversation, name='archive_conversation'),
     path('conversations/<uuid:conversation_id>/delete/', views.delete_conversation, name='delete_conversation'),
     path('conversations/<uuid:conversation_id>/export/', views.export_conversation, name='export_conversation'),
@@ -42,7 +43,8 @@ urlpatterns = [
     
     # RAG formatted conversation history
     path('conversations/<uuid:conversation_id>/rag-history/', views.RAGConversationHistoryView.as_view(), name='rag_conversation_history'),
-    
+    path('conversations/<uuid:conversation_id>/rag-history', views.RAGConversationHistoryView.as_view(), name='rag_conversation_history_no_slash'),
+
     # RAG file download
     path('files/download/<str:filename>/', views.download_rag_file, name='download_rag_file'),
 ]
