@@ -102,16 +102,16 @@ class AnalyticsService:
     ) -> Dict[str, Any]:
         """Get user activity statistics"""
         queryset = UserActivity.objects.all()
-        
+
         if user_id:
             queryset = queryset.filter(user_id=user_id)
-        
+
         if start_date:
             queryset = queryset.filter(date__gte=start_date)
-        
+
         if end_date:
             queryset = queryset.filter(date__lte=end_date)
-        
+
         stats = queryset.aggregate(
             total_logins=Sum('login_count'),
             total_messages=Sum('chat_messages_sent'),
@@ -124,14 +124,70 @@ class AnalyticsService:
             avg_session_time=Avg('total_session_time'),
             avg_active_time=Avg('active_time')
         )
-        
+
         # Convert None values to 0
         for key, value in stats.items():
             if value is None:
                 stats[key] = 0
-        
+
         return stats
-    
+
+    @staticmethod
+    def get_daily_token_usage(
+        start_date: date = None,
+        end_date: date = None
+    ) -> List[Dict[str, Any]]:
+        """Get daily token usage statistics"""
+        if not start_date:
+            start_date = timezone.now().date() - timedelta(days=30)
+        if not end_date:
+            end_date = timezone.now().date()
+
+        from apps.chat.models import ChatMessage
+
+        # Get daily token statistics
+        daily_stats = []
+        current_date = start_date
+
+        while current_date <= end_date:
+            # Get messages for this date
+            messages_today = ChatMessage.objects.filter(
+                created_at__date=current_date,
+                message_type=ChatMessage.MessageType.ASSISTANT  # Only count assistant messages
+            )
+
+            # Calculate token statistics for the day
+            total_tokens = messages_today.aggregate(
+                total=Sum('tokens_used')
+            )['total'] or 0
+
+            input_tokens = messages_today.aggregate(
+                total=Sum('input_tokens')
+            )['total'] or 0
+
+            output_tokens = messages_today.aggregate(
+                total=Sum('output_tokens')
+            )['total'] or 0
+
+            message_count = messages_today.count()
+
+            # Get unique users count for the day
+            unique_users = messages_today.values('user').distinct().count()
+
+            daily_stats.append({
+                'date': current_date.isoformat(),
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens,
+                'total_tokens': total_tokens,
+                'message_count': message_count,
+                'unique_users': unique_users,
+                'avg_tokens_per_message': round(total_tokens / message_count, 2) if message_count > 0 else 0
+            })
+
+            current_date += timedelta(days=1)
+
+        return daily_stats
+
     @staticmethod
     def get_subscription_stats(
         start_date: date = None,

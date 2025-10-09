@@ -947,7 +947,7 @@ def token_usage_by_user(request):
         # Get date range from query parameters
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
-        
+
         # Default to last 30 days if no dates provided or empty strings
         if not end_date or end_date.strip() == '':
             end_date = timezone.now().date()
@@ -956,7 +956,7 @@ def token_usage_by_user(request):
                 end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
             except ValueError:
                 end_date = timezone.now().date()
-            
+
         if not start_date or start_date.strip() == '':
             start_date = end_date - timedelta(days=30)
         else:
@@ -964,21 +964,21 @@ def token_usage_by_user(request):
                 start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
             except ValueError:
                 start_date = end_date - timedelta(days=30)
-        
+
         # Get token usage from ChatMessage model grouped by user (like Farmon)
         processed_data = []
-        
+
         # Get all users who have sent messages in the date range
         users_with_messages = User.objects.filter(
             chat_messages__created_at__date__gte=start_date,
             chat_messages__created_at__date__lte=end_date
         ).distinct()
-        
+
         total_tokens_all = 0
         total_input_tokens_all = 0
         total_output_tokens_all = 0
         total_messages_all = 0
-        
+
         for user in users_with_messages:
             # Get messages for this user in the date range
             user_messages = ChatMessage.objects.filter(
@@ -986,22 +986,22 @@ def token_usage_by_user(request):
                 created_at__date__gte=start_date,
                 created_at__date__lte=end_date
             )
-            
+
             # Calculate token statistics
             total_tokens = user_messages.aggregate(
                 total=Sum('tokens_used')
             )['total'] or 0
-            
+
             input_tokens = user_messages.aggregate(
                 total=Sum('input_tokens')
             )['total'] or 0
-            
+
             output_tokens = user_messages.aggregate(
                 total=Sum('output_tokens')
             )['total'] or 0
-            
+
             message_count = user_messages.count()
-            
+
             # Only include users with actual token usage
             if total_tokens > 0 or input_tokens > 0 or output_tokens > 0:
                 # Calculate full name
@@ -1010,12 +1010,12 @@ def token_usage_by_user(request):
                     full_name = f"{user.first_name} {user.last_name}"
                 else:
                     full_name = user.username
-                
+
                 # Calculate average tokens per message
                 avg_tokens_per_message = 0
                 if message_count > 0:
                     avg_tokens_per_message = round(total_tokens / message_count, 2)
-                
+
                 processed_data.append({
                     'user_id': user.id,
                     'username': user.username,
@@ -1027,21 +1027,21 @@ def token_usage_by_user(request):
                     'message_count': message_count,
                     'avg_tokens_per_message': avg_tokens_per_message
                 })
-                
+
                 # Add to totals
                 total_tokens_all += total_tokens
                 total_input_tokens_all += input_tokens
                 total_output_tokens_all += output_tokens
                 total_messages_all += message_count
-        
+
         # Sort by total tokens used (descending)
         processed_data.sort(key=lambda x: x['total_tokens_used'], reverse=True)
-        
+
         # Calculate averages
         avg_tokens_per_message = 0
         if total_messages_all > 0:
             avg_tokens_per_message = round(total_tokens_all / total_messages_all, 2)
-        
+
         return Response({
             'success': True,
             'data': processed_data,
@@ -1051,8 +1051,81 @@ def token_usage_by_user(request):
                 'end_date': end_date.isoformat()
             }
         })
-        
+
     except Exception as e:
         return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def daily_token_usage(request):
+    """Get daily token usage statistics by date range (Public API - No authentication required)"""
+    try:
+        # Get date range from query params
+        start_date_str = request.GET.get('start_date')
+        end_date_str = request.GET.get('end_date')
+
+        start_date = None
+        end_date = None
+
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'error': 'Invalid start_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'error': 'Invalid end_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate date range
+        if start_date and end_date and start_date > end_date:
+            return Response({
+                'success': False,
+                'error': 'start_date must be before or equal to end_date'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get daily token usage statistics
+        token_stats = AnalyticsService.get_daily_token_usage(
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        # Calculate summary statistics
+        total_input_tokens = sum(day['input_tokens'] for day in token_stats)
+        total_output_tokens = sum(day['output_tokens'] for day in token_stats)
+        total_tokens = sum(day['total_tokens'] for day in token_stats)
+        total_messages = sum(day['message_count'] for day in token_stats)
+
+        return Response({
+            'success': True,
+            'data': token_stats,
+            'summary': {
+                'total_input_tokens': total_input_tokens,
+                'total_output_tokens': total_output_tokens,
+                'total_tokens': total_tokens,
+                'total_messages': total_messages,
+                'total_days': len(token_stats),
+                'avg_tokens_per_day': round(total_tokens / len(token_stats), 2) if len(token_stats) > 0 else 0
+            },
+            'date_range': {
+                'start_date': start_date.isoformat() if start_date else (timezone.now().date() - timedelta(days=30)).isoformat(),
+                'end_date': end_date.isoformat() if end_date else timezone.now().date().isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({
+            'success': False,
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
