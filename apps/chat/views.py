@@ -156,13 +156,14 @@ class ConversationListView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         user = self.request.user
-        # Admins can view all conversations or filter by a specific user
-        if getattr(user, 'is_admin', False):
-            queryset = Conversation.objects.all()
-            user_id = self.request.query_params.get('user_id')
-            if user_id:
-                queryset = queryset.filter(user_id=user_id)
+        # Admins can filter by a specific user_id parameter, otherwise show their own
+        user_id = self.request.query_params.get('user_id')
+
+        if getattr(user, 'is_admin', False) and user_id:
+            # Admin explicitly requesting another user's conversations
+            queryset = Conversation.objects.filter(user_id=user_id)
         else:
+            # Show current user's conversations (works for both admin and regular users)
             queryset = user.conversations.all()
 
         # Filter by archived status
