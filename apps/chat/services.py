@@ -140,10 +140,18 @@ class AIService:
                 
                 # Calculate tokens for complete responses
                 if chunk.get('type') == 'complete':
-                    token_data = self._calculate_tokens(message, chunk.get('accumulated_response', ''))
-                    chunk['tokens_used'] = token_data['total_tokens']
-                    chunk['input_tokens'] = token_data['input_tokens']
-                    chunk['output_tokens'] = token_data['output_tokens']
+                    metadata = chunk.get('metadata', {})
+
+                    # Use metadata tokens if available, otherwise calculate
+                    if metadata.get('tokens_used'):
+                        chunk['tokens_used'] = metadata['tokens_used']
+                        chunk['input_tokens'] = metadata.get('input_tokens', 0)
+                        chunk['output_tokens'] = metadata.get('output_tokens', 0)
+                    else:
+                        token_data = self._calculate_tokens(message, chunk.get('accumulated_response', ''))
+                        chunk['tokens_used'] = token_data['total_tokens']
+                        chunk['input_tokens'] = token_data['input_tokens']
+                        chunk['output_tokens'] = token_data['output_tokens']
                 
                 yield chunk
                 
@@ -311,10 +319,11 @@ Try rephrasing your question with specific business context or terminology from 
             accumulated_response = ""
             sources = []
             line_count = 0
-            
+            metadata = {}  # Track metadata from completed events
+
             for line in response.iter_lines(decode_unicode=True):
                 line_count += 1
-                
+
                 if line:
                     # Handle Server-Sent Events format
                     if line.startswith('data: '):
@@ -323,11 +332,13 @@ Try rephrasing your question with specific business context or terminology from 
                         if data_content.strip() == '[DONE]':
                             # Final event - yield complete response
                             markdown_response = md(accumulated_response, heading_style="ATX", bullets="-")
+
                             yield {
                                 'type': 'complete',
                                 'response': markdown_response,
                                 'sources': sources,
-                                'accumulated_response': accumulated_response
+                                'accumulated_response': accumulated_response,
+                                'metadata': metadata  # Include metadata from completed event
                             }
                             break
                         
@@ -401,6 +412,9 @@ Try rephrasing your question with specific business context or terminology from 
                                 api_sources = json_data.get('sources', [])
                                 source_doc = json_data.get('content', '')
 
+                                # Extract and store metadata for later use
+                                metadata = json_data.get('metadata', {})
+
                                 # Check if there's actual source content
                                 source_content_after_prefix = source_doc
                                 if source_doc.startswith("Sources:"):
@@ -451,7 +465,8 @@ Try rephrasing your question with specific business context or terminology from 
                                         yield {
                                             'type': 'source_document',
                                             'source': sources,
-                                            'matches': matches
+                                            'matches': matches,
+                                            'metadata': metadata  # Include metadata for token tracking
                                         }
                                 else:
                                     logger.info("No sources in completed event - skipping source_document event")
@@ -474,7 +489,8 @@ Try rephrasing your question with specific business context or terminology from 
                     'type': 'complete',
                     'response': markdown_response,
                     'sources': sources,
-                    'accumulated_response': accumulated_response
+                    'accumulated_response': accumulated_response,
+                    'metadata': metadata  # Include metadata
                 }
 
         except requests.exceptions.RequestException as e:
@@ -775,6 +791,8 @@ class ChatService:
                 sources=ai_result.get('sources', []),
                 status=ChatMessage.MessageStatus.COMPLETED if ai_result['success'] else ChatMessage.MessageStatus.FAILED,
                 tokens_used=ai_result['tokens_used'],
+                input_tokens=ai_result.get('input_tokens', 0),
+                output_tokens=ai_result.get('output_tokens', 0),
                 model_used=ai_result['model_used'],
                 response_time_ms=ai_result['response_time_ms'],
                 error_message=ai_result['error'] or ''
@@ -894,10 +912,19 @@ class ChatService:
                 elif chunk.get('type') == 'complete':
                     accumulated_response = chunk.get('response', '')
                     sources = chunk.get('sources', [])
+                    metadata = chunk.get('metadata', {})
+
+                    # Extract token data from metadata if present, otherwise use chunk-level data
+                    tokens_used = metadata.get('tokens_used') or chunk.get('tokens_used', 0)
+                    input_tokens = metadata.get('input_tokens') or chunk.get('input_tokens', 0)
+                    output_tokens = metadata.get('output_tokens') or chunk.get('output_tokens', 0)
+
                     assistant_message.content = accumulated_response
                     assistant_message.sources = sources
                     assistant_message.status = ChatMessage.MessageStatus.COMPLETED
-                    assistant_message.tokens_used = chunk.get('tokens_used', 0)
+                    assistant_message.tokens_used = tokens_used
+                    assistant_message.input_tokens = input_tokens
+                    assistant_message.output_tokens = output_tokens
                     assistant_message.model_used = chunk.get('model_used', '')
                     assistant_message.response_time_ms = chunk.get('response_time_ms', 0)
                     assistant_message.save()
