@@ -350,75 +350,111 @@ Try rephrasing your question with specific business context or terminology from 
                                 # This is source information
                                 source_doc = json_data['content']
                                 matches = json_data.get('matches', [])
-                                logger.info(f"Source document: {source_doc}")
-                                logger.info(f"Matches with page numbers: {matches}")
-                                
-                                # Create source objects from matches array (more reliable than parsing content)
-                                for match in matches:
-                                    filename = match.get('filename')
-                                    page_number = match.get('page_number')
-                                    
-                                    if filename:
-                                        # Create source object
-                                        source_obj = {
-                                            'filename': filename,
-                                            'page': page_number
-                                        }
-                                        
-                                        # Add to sources if not already present (check by filename)
-                                        if not any(s.get('filename') == filename for s in sources):
-                                            sources.append(source_obj)
-                                    
-                                yield {
-                                    'type': 'source_document',
-                                    'source': sources,
-                                    'matches': matches
-                                }
-                            
-                            if json_data.get('type') == 'completed':
-                                # Handle completed response with sources and matches
-                                matches = json_data.get('matches', [])
-                                api_sources = json_data.get('sources', [])
-                                
-                                if matches or api_sources:
-                                    logger.info(f"Completed response with matches: {matches}")
-                                    logger.info(f"Completed response with sources: {api_sources}")
-                                    
-                                    # Create source objects from matches array (more reliable)
+                                logger.info(f"📚 RAG API Source document: {source_doc}")
+                                logger.info(f"📋 RAG API Matches: {matches}")
+
+                                # Check if source_doc has actual content after "Sources:"
+                                # Skip if it's only "Sources:" or "Sources: " with nothing after
+                                source_content_after_prefix = source_doc
+                                if source_doc.startswith("Sources:"):
+                                    source_content_after_prefix = source_doc[8:].strip()  # Remove "Sources:" and strip
+                                elif source_doc.startswith("Source:"):
+                                    source_content_after_prefix = source_doc[7:].strip()  # Remove "Source:" and strip
+
+                                # Only process matches if there's actual content after "Sources:"
+                                if source_content_after_prefix:
+                                    logger.info(f"✅ Source content found after prefix: {source_content_after_prefix}")
+                                    # Create source objects from matches array (more reliable than parsing content)
                                     for match in matches:
                                         filename = match.get('filename')
                                         page_number = match.get('page_number')
-                                        
-                                        if filename:
+
+                                        # Skip empty filenames or "Sources:" strings
+                                        if filename and filename.strip() and filename.strip().lower() not in ["sources:", "source:"]:
                                             # Create source object
                                             source_obj = {
                                                 'filename': filename,
                                                 'page': page_number
                                             }
-                                            
+
                                             # Add to sources if not already present (check by filename)
                                             if not any(s.get('filename') == filename for s in sources):
                                                 sources.append(source_obj)
-                                    
+
+                                    # Only yield source_document event if we have valid sources
+                                    if sources:
+                                        logger.info(f"🎯 Sending {len(sources)} sources to frontend")
+                                        yield {
+                                            'type': 'source_document',
+                                            'source': sources,
+                                            'matches': matches
+                                        }
+                                    else:
+                                        logger.info("⚠️ No valid sources to send after filtering")
+                                else:
+                                    # Log that no sources were found
+                                    logger.info("❌ No sources found - source_doc is empty or only contains 'Sources:'")
+                            
+                            if json_data.get('type') == 'completed':
+                                # Handle completed response with sources and matches
+                                matches = json_data.get('matches', [])
+                                api_sources = json_data.get('sources', [])
+                                source_doc = json_data.get('content', '')
+
+                                # Check if there's actual source content
+                                source_content_after_prefix = source_doc
+                                if source_doc.startswith("Sources:"):
+                                    source_content_after_prefix = source_doc[8:].strip()
+                                elif source_doc.startswith("Source:"):
+                                    source_content_after_prefix = source_doc[7:].strip()
+
+                                # Only process matches/sources if there's actual content
+                                if (matches or api_sources) and source_content_after_prefix:
+                                    logger.info(f"Completed response with matches: {matches}")
+                                    logger.info(f"Completed response with sources: {api_sources}")
+
+                                    # Create source objects from matches array (more reliable)
+                                    for match in matches:
+                                        filename = match.get('filename')
+                                        page_number = match.get('page_number')
+
+                                        # Skip empty filenames or "Sources:" strings
+                                        if filename and filename.strip() and filename.strip().lower() not in ["sources:", "source:"]:
+                                            # Create source object
+                                            source_obj = {
+                                                'filename': filename,
+                                                'page': page_number
+                                            }
+
+                                            # Add to sources if not already present (check by filename)
+                                            if not any(s.get('filename') == filename for s in sources):
+                                                sources.append(source_obj)
+
                                     # Also handle sources array if matches is empty
                                     if not matches and api_sources:
                                         for source_filename in api_sources:
-                                            if source_filename and isinstance(source_filename, str):
+                                            # Skip empty filenames or "Sources:" strings
+                                            if (source_filename and isinstance(source_filename, str) and
+                                                source_filename.strip() and
+                                                source_filename.strip().lower() not in ["sources:", "source:"]):
                                                 source_obj = {
                                                     'filename': source_filename,
                                                     'page': None
                                                 }
-                                                
+
                                                 # Add to sources if not already present
                                                 if not any(s.get('filename') == source_filename for s in sources):
                                                     sources.append(source_obj)
-                                    
-                                    # Yield source document event
-                                    yield {
-                                        'type': 'source_document',
-                                        'source': sources,
-                                        'matches': matches
-                                    }
+
+                                    # Only yield source document event if we have valid sources
+                                    if sources:
+                                        yield {
+                                            'type': 'source_document',
+                                            'source': sources,
+                                            'matches': matches
+                                        }
+                                else:
+                                    logger.info("No sources in completed event - skipping source_document event")
                                     
                         except json.JSONDecodeError as e:
                             # If not JSON, treat as plain text streaming
@@ -504,35 +540,39 @@ Try rephrasing your question with specific business context or terminology from 
     
     def _extract_sources_from_document(self, source_document: str) -> list:
         """Extract document names from source_document string.
-        
+
         Args:
             source_document: String like "Sources: Meeting Rhythms & GSRs.docx, Q3 Strategy Planning _ Mid-Year Review Guide.docx"
-            
+
         Returns:
             List of document objects with filename and page: [{"filename": "Meeting Rhythms & GSRs.docx", "page": None}, ...]
         """
         if not source_document:
             return []
-        
+
         try:
             # Remove "Sources: " prefix if present
             if source_document.startswith("Sources: "):
                 source_document = source_document[9:]  # Remove "Sources: "
-            
+            elif source_document.strip() == "Sources:":
+                # If it's only "Sources:" with nothing else, return empty
+                return []
+
             # Split by comma and clean up each document name
             documents = [doc.strip() for doc in source_document.split(',')]
-            
-            # Filter out empty strings and create source objects
+
+            # Filter out empty strings, "Sources:", and create source objects
             source_objects = []
             for doc in documents:
-                if doc:
+                # Skip empty, whitespace-only, or "Sources:" strings
+                if doc and doc.strip() and doc.strip().lower() != "sources:" and doc.strip() != "source:":
                     source_objects.append({
                         'filename': doc,
                         'page': None  # Page number not available in non-streaming API
                     })
-            
+
             return source_objects
-            
+
         except Exception as e:
             logger.error(f"Error extracting sources from document: {str(e)}")
             return []
